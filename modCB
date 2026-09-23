@@ -1,0 +1,68 @@
+Option Compare Database
+Option Explicit
+
+
+Public Sub sBTOnAction(ct As IRibbonControl)
+On Error GoTo Er
+
+    Select Case ct.id
+        Case "bLoadXML"
+            ClearAllTables
+            SysCmd acSysCmdSetStatus, "Загрузка XML..."
+            LoadXML
+            SysCmd acSysCmdSetStatus, "Загрузка сканов..."
+            LoadFiles
+            SysCmd acSysCmdSetStatus, "Сопоставление сканов..."
+            ProcessScanFiles
+            SysCmd acSysCmdClearStatus
+            MsgBox "Process complete"
+        Case "bAddXML"
+            SysCmd acSysCmdSetStatus, "Загрузка XML..."
+            LoadXML
+            SysCmd acSysCmdSetStatus, "Загрузка сканов..."
+            LoadFiles
+            SysCmd acSysCmdSetStatus, "Сопоставление сканов..."
+            ProcessScanFiles
+            SysCmd acSysCmdClearStatus
+            MsgBox "Process complete"
+        Case "bLoadScan"
+            SysCmd acSysCmdSetStatus, "Загрузка сканов..."
+            LoadFiles
+            SysCmd acSysCmdSetStatus, "Сопоставление сканов..."
+            ProcessScanFiles
+            SysCmd acSysCmdClearStatus
+            MsgBox "Process complete"
+        Case "bWeb"
+            SysCmd acSysCmdSetStatus, "Загрузка протоколов из ФГИС..."
+            sProtLoad
+            SysCmd acSysCmdSetStatus, "Загрузка списка сканов..."
+            LoadFiles
+            ProcessScanFiles
+            SysCmd acSysCmdSetStatus, "Архивация сканов..."
+            ProtRemove
+            SysCmd acSysCmdClearStatus
+            MsgBox "Process complete"
+        Case "bExportXML"
+            ExportProtocols
+            MsgBox "Process complete"
+        Case "bSetting"
+            DoCmd.OpenForm "Setting", , , , , acDialog
+        Case "bExcel"
+            sLoadProtCab
+            LoadFiles
+            ProcessScanFiles
+            ProtRemove
+            MsgBox "Process complete"
+        Case Else
+            Debug.Print ct.id
+    End Select
+
+Exit_Sub:
+    Exit Sub
+Er:
+    If ErrMsg("modCB.sBTOnAction") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
