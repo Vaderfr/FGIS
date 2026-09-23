@@ -1,0 +1,16 @@
+TABLE: AddressID
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+AddressID | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {CCCDA742-ACE1-4707-B643-0FC8386B3390} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+
+DESCRIPTION
+--------------------------------------------------------------------------------

@@ -1,0 +1,29 @@
+TABLE: protocol
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+DocId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DocCreationDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DocStartDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DocValidityDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DataStatusId | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+ProtocolStatusId | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+TerritoryFeature | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+AdditionKindId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+AdditionKindDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+ApplicationDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+AccredScope353 | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+NoEquipmentInfo | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: DocId | Primary=No | Unique=Yes | IgnoreNulls=No
+    FIELD: DocId
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdProtocol
+
+DESCRIPTION
+--------------------------------------------------------------------------------

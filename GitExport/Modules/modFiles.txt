@@ -1,0 +1,110 @@
+Option Compare Database
+Option Explicit
+
+
+Public Sub LoadFiles()
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset2
+    Dim fso As New Scripting.FileSystemObject
+    Dim f As Scripting.File
+    
+    Dim sPath(1 To 2) As String
+    Dim sFile As String
+    Dim sName As String
+    Dim n As Integer
+    
+    sPath(1) = fGetSetting("ScanEIAS")
+    sPath(2) = fGetSetting("ScanLIS")
+    
+    CurrentDb.Execute ("DELETE FROM tFiles")
+    
+    Set rs = CurrentDb.OpenRecordset("tFiles")
+    
+    
+    For n = 1 To 2
+        sName = Dir(fso.BuildPath(sPath(n), "*.pdf"))
+        Do While sName <> ""
+        sFile = fso.BuildPath(sPath(n), sName)
+        Set f = fso.GetFile(sFile)
+            rs.AddNew
+            rs!PathScan = sFile
+            rs!FileName = sName
+            rs!SourceType = n
+            rs!parsed = False
+            rs!DateFile = f.DateCreated
+            rs.Update
+            sName = Dir()
+        Loop
+    Next n
+
+Exit_Sub:
+    rs.Close
+    Set rs = Nothing
+    Set fso = Nothing
+    Exit Sub
+Er:
+    If ErrMsg("modFiles.LoadFiles") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+Public Sub ProtRemove()
+On Error GoTo Er
+
+    Dim fso As New Scripting.FileSystemObject
+    Dim rs As Recordset2
+    Dim sDest As String
+    Dim sName As String
+    Dim sExt As String
+    Dim sPath As String
+    Dim sYear As String
+    Dim n As Integer
+    
+    sDest = fGetSetting("Arc")
+    If Trim$(sDest) = "" Then Exit Sub
+    
+    Set rs = CurrentDb.OpenRecordset("qProtRemove")
+    Do Until rs.EOF
+        sName = fso.GetBaseName(rs("PathFile"))
+        sExt = fso.GetExtensionName(rs("PathFile"))
+        sYear = fProtYear(sName)
+        If sYear = "" Then
+            rs.MoveNext
+            GoTo NextRecord
+        End If
+        sPath = fso.BuildPath(sDest, sYear)
+                
+        sPath = fso.BuildPath(sPath, IIf(rs!SourceType = 1, "≈»¿—", "À»—"))
+        If Not fso.FolderExists(sPath) Then sCreateFolder (sPath)
+        sPath = fso.BuildPath(sPath, sName)
+        n = 0
+        Do While fso.FileExists(sPath & "." & sExt)
+            n = n + 1
+            sPath = sPath & "_" & n
+        Loop
+        sPath = sPath & "." & sExt
+        fso.CopyFile rs("PathFile"), sPath
+        If fso.FileExists(sPath) Then
+            If fso.GetFile(sPath).Size = fso.GetFile(rs("PathFile")).Size Then
+                fso.DeleteFile rs("PathFile")
+            End If
+        End If
+NextRecord:
+        rs.MoveNext
+    Loop
+
+
+Exit_Sub:
+    Exit Sub
+Er:
+    If Err.Number = 53 Then
+        GoTo NextRecord
+    ElseIf ErrMsg("modFiles.ProtRemove") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub

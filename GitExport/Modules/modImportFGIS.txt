@@ -1,0 +1,320 @@
+Option Compare Database
+Option Explicit
+
+Const PAGE_SIZE As Long = 500
+
+Public Sub sProtLoad()
+    On Error GoTo Er
+
+    Dim rsProt As DAO.Recordset
+    Dim json As Object
+    Dim items As Object
+    Dim itm As Object
+    
+    Dim sAuthorization As String
+    Dim sOrgId As String
+    Dim sURL As String
+    Dim sJSON As String
+    Dim dtDate As String
+    
+    Dim iDayFgis As Long
+    Dim iOffset As Long
+    Dim currentPageCount As Long
+
+    iDayFgis = fGetSetting("DayFgis")
+    dtDate = Format(DateAdd("d", -iDayFgis, Date), "yyyy-mm-dd")
+    sOrgId = fGetSetting("OrgId")
+
+    ' 1. Получение или запрос токена (исправлена опечатка: "Authorization")
+    If GetSetting("3EIAS", "Authorization", "Token", "") = "" Then
+        SaveSetting "3EIAS", "Authorization", "Token", fInputBox("Введите токен безопасности")
+    End If
+    
+    sAuthorization = "Bearer " & GetSetting("3EIAS", "Authorization", "Token", "")
+
+    sURL = "https://fgis.fsa.gov.ru/api/v1/rpi/common/showcases/get"
+'Debug.Print "DELETE FROM tProtCab " _
+        & "WHERE CreateDate >= #" & dtDate & "#;"
+    ' 2. Очистка старых записей
+    CurrentDb.Execute "DELETE FROM tProtCab " _
+        & "WHERE CreateDate >= #" & dtDate & "#;" ', dbFailOnError
+
+    Set rsProt = CurrentDb.OpenRecordset("tProtCab", dbOpenDynaset)
+
+    Do
+        sJSON = fPostJSON(sURL, fProtPayload(dtDate, iOffset), sAuthorization, sOrgId)
+        
+        ' 3. Парсинг JSON нативными средствами VBA (совместимо с 64-бит)
+        Set json = JsonConverter.ParseJson(sJSON)
+        
+        If Not json.Exists("items") Or TypeName(json("items")) <> "Collection" Then
+            Err.Raise vbObjectError + 1000, , "Неверный формат ответа API: " & Left$(sJSON, 200)
+        End If
+        
+        Set items = json("items")
+        currentPageCount = items.count
+        
+        ' 4. Добавление записей в таблицу
+        
+
+For Each itm In items
+    rsProt.AddNew
+    rsProt!id = itm("id")
+    rsProt!Edit = itm("edit")
+    rsProt!Delay = Nz(itm("delay"), "")
+    rsProt!ALName = itm("ALName")
+    rsProt!SentDate = ISOToDate(itm("sentDate"))
+    rsProt!CreateDate = ISOToDate(itm("createDate"))
+    rsProt!ObjectType = itm("objectType")
+    rsProt!RegNumberAL = itm("regNumberAL")
+    rsProt!CustomerName = itm("customerName")
+    rsProt!CustomerType = itm("customerType")
+    rsProt!DecisionDate = itm("decisionDate")
+    rsProt!ProtocolDate = itm("protocolDate")
+    rsProt!StatementDate = itm("statementDate")
+    rsProt!AccredScope353 = itm("accredScope353")
+    rsProt!FullObjectName = itm("fullObjectName")
+    rsProt!ProtocolNumber = itm("protocolNumber")
+    rsProt!ProtocolStatus = itm("protocolStatus")
+    rsProt!ResearchResult = itm("researchResult")
+    rsProt!ChangeStatusNumber = itm("changeStatusNumber")
+    rsProt!ProtocolDataStatus = itm("protocolDataStatus")
+    rsProt.Update
+Next
+'        For Each itm In items
+'            rsProt.AddNew
+'            rsProt![Номер протокола] = itm("protocolNumber")
+'            rsProt![Дата протокола] = itm("protocolDate")
+'            rsProt.Update
+'        Next itm
+        
+        iOffset = iOffset + 1
+        DoEvents
+
+    ' 5. ИСПРАВЛЕНО: Цикл продолжается только если на текущей странице вернулось полное число записей (PAGE_SIZE)
+    Loop While currentPageCount = PAGE_SIZE
+
+Exit_Sub:
+    On Error Resume Next
+    If Not rsProt Is Nothing Then
+        rsProt.Close
+        Set rsProt = Nothing
+    End If
+    Set items = Nothing
+    Set json = Nothing
+    Exit Sub
+
+Er:
+    If ErrMsg("bHTTP.sProtLoad") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+Private Function fPostJSON(ByVal sURL As String, _
+                           ByVal sPayload As String, _
+                           ByRef sAuthorization As String, _
+                           ByVal sOrgId As String) As String
+    On Error GoTo Er
+
+    ' Используем позднее связывание для лучшей совместимости
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+
+Retry:
+    With http
+        .Open "POST", sURL, False
+        .setRequestHeader "Accept", "application/json, text/plain, */*"
+        .setRequestHeader "Authorization", sAuthorization
+        .setRequestHeader "Cookie", "session_lk=" & Replace$(sAuthorization, "Bearer ", "")
+        .setRequestHeader "Content-Type", "application/json"
+        .setRequestHeader "lkid", "8"
+        .setRequestHeader "orgid", "orgs.dict.orgtypes.il." & sOrgId
+        .setRequestHeader "Origin", "https://fgis.fsa.gov.ru"
+        .setRequestHeader "Referer", "https://fgis.fsa.gov.ru/rpi"
+        .setRequestHeader "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        .send sPayload
+    End With
+
+    Select Case http.Status
+        Case 200
+            fPostJSON = http.responseText
+            
+        Case 401
+            Dim newToken As String
+            newToken = fInputBox("Срок действия токена истек. Введите новый токен безопасности:")
+            
+            ' Защита от бесконечного цикла: если пользователь нажал Отмена или оставил поле пустым
+            If Len(Trim$(newToken)) = 0 Then
+                Err.Raise vbObjectError + 401, , "Операция отменена: токен не введен."
+            End If
+            
+            SaveSetting "3EIAS", "Authorization", "Token", newToken
+            sAuthorization = "Bearer " & newToken
+            GoTo Retry
+            
+        Case Else
+            Err.Raise vbObjectError + http.Status, , "HTTP " & http.Status & vbCrLf & http.responseText
+    End Select
+
+Exit_Function:
+    Set http = Nothing
+    Exit Function
+
+Er:
+    ' Гарантированная очистка объекта http даже при ошибке
+    Resume Exit_Function
+End Function
+
+Private Function fProtPayload(ByVal sDate As String, ByVal iOffset As Long) As String
+    fProtPayload = _
+        "{""limit"":" & PAGE_SIZE & "," & _
+        """offset"":" & iOffset & "," & _
+        """numberOfAllRecords"":false," & _
+        """protocolNumber"":null," & _
+        """protocolDate"":{""startDate"":""" & sDate & """,""endDate"":""""}," & _
+        """protocolSendDate"":null," & _
+        """delayData"":null," & _
+        """dataStatus"":{""id"":13,""name"":""Отправлен"",""selected"":true}," & _
+        """protocolRedacted"":null," & _
+        """hardwareNumber"":null," & _
+        """ALRegisterNumber"":null," & _
+        """ALName"":null," & _
+        """objectType"":null," & _
+        """fullObjectName"":null," & _
+        """statementDate"":null," & _
+        """clientType"":null," & _
+        """status"":null," & _
+        """clientName"":null," & _
+        """columns"":[]}"
+End Function
+Public Sub sLoadProtCab()
+On Error GoTo Er
+
+    Dim iProtCab As ImportExportSpecification
+    Dim oFD As Office.FileDialog
+    Dim oFSO As New Scripting.FileSystemObject
+    Dim dMinDate As Date
+    Dim rs As DAO.Recordset
+    Dim sFile As Variant
+    Dim sTMP As String
+    Dim sXML As String
+    
+    Set oFD = Application.FileDialog(msoFileDialogFilePicker)
+    sTMP = oFSO.BuildPath(oFSO.GetSpecialFolder(2), "tmp.xlsx")
+ 
+       sXML = "<?xml version=""1.0""?>" & vbCrLf _
+            & "<ImportExportSpecification Path=""" & sTMP & """ xmlns=""urn:www.microsoft.com/office/access/imexspec"">" & vbCrLf _
+            & "  <ImportExcel FirstRowHasNames=""true"" AppendToTable=""tProtLoadTMP"" Range=""registry$"">" & vbCrLf _
+            & "    <Columns PrimaryKey="""">" & vbCrLf _
+            & "      <Column Name=""Col1"" FieldName=""№"" Indexed=""NO"" SkipColumn=""true"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col2"" FieldName=""Статус данных протокола"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col3"" FieldName=""Статус протокола"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col4"" FieldName=""Номер протокола"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col5"" FieldName=""Дата протокола"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col6"" FieldName=""Номер аттестата аккредитации АЛ"" Indexed=""YESDUPLICATES"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col7"" FieldName=""Наименование АЛ"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col8"" FieldName=""Тип объекта"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col9"" FieldName=""Наименование объекта"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col10"" FieldName=""Тип заказчика"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col11"" FieldName=""Наименование заказчика"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col12"" FieldName=""Дата подачи заявления"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "      <Column Name=""Col13"" FieldName=""Дата создания протокола в Системе"" Indexed=""NO"" SkipColumn=""false"" DataType=""Text""/>" & vbCrLf _
+            & "    </Columns>" & vbCrLf _
+            & "  </ImportExcel>" & vbCrLf _
+            & "</ImportExportSpecification>"
+
+
+'Debug.Print sXML
+       
+On Error Resume Next
+    Set iProtCab = CurrentProject.ImportExportSpecifications.item("iProtLoad")
+On Error GoTo Er
+
+    If iProtCab Is Nothing Then
+    
+        Set iProtCab = CurrentProject.ImportExportSpecifications.Add("iProtLoad", sXML)
+    
+    Else
+    
+        iProtCab.xml = sXML
+    
+    End If
+    
+    With oFD
+        .Title = "Файл"
+        .Filters.Clear
+        .Filters.Add "Файлы Excel", "*.xlsx"
+        .AllowMultiSelect = True
+        .InitialFileName = fGetSetting("SourceCab")
+        If .Show Then
+            For Each sFile In .SelectedItems
+                oFSO.CopyFile sFile, sTMP
+                dMinDate = GetMinProtDate(sTMP)
+                CurrentDb.Execute _
+                        "DELETE FROM tProtLoadTMP", dbFailOnError
+                CurrentDb.Execute _
+                        "DELETE FROM tProtCab " & _
+                        "WHERE ProtocolDate >= #" & _
+                        Format(dMinDate, "yyyy-mm-dd") & "#"
+                DoCmd.RunSavedImportExport ("iProtLoad")
+                oFSO.DeleteFile sTMP
+            With DoCmd
+                .SetWarnings False
+                .OpenQuery ("aProtCab")
+                .SetWarnings True
+            End With
+                CurrentDb.Execute _
+                        "DELETE FROM tProtLoadTMP", dbFailOnError
+            Next sFile
+
+        Else
+            GoTo Exit_Sub
+        End If
+    End With
+    
+
+Exit_Sub:
+    Set oFD = Nothing
+    Exit Sub
+Er:
+    Debug.Print Err.Description
+    Resume Exit_Sub
+
+End Sub
+
+Sub s1()
+    Dim ii As ImportExportSpecification
+    
+
+    
+    For Each ii In CurrentProject.ImportExportSpecifications
+        Debug.Print "===" & ii.Name & "==="
+        Debug.Print ii.xml
+        Debug.Print
+    Next ii
+End Sub
+Private Function GetMinProtDate(sFile As String) As Date
+
+    Dim cn As Object
+    Dim rs As Object
+
+    Set cn = CreateObject("ADODB.Connection")
+
+    cn.Open "Provider=Microsoft.ACE.OLEDB.12.0;" & _
+            "Data Source=" & sFile & ";" & _
+            "Extended Properties=""Excel 12.0 Xml;HDR=YES"""
+
+    Set rs = cn.Execute( _
+        "SELECT MIN([Дата протокола]) AS MinDate FROM [registry$]" _
+    )
+
+    If Not rs.EOF Then
+        GetMinProtDate = rs!MinDate
+    End If
+
+    rs.Close
+    cn.Close
+
+End Function

@@ -1,0 +1,20 @@
+TABLE: CustomerAddress
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdOCustomer | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdAddress | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {5C0F6327-AFD3-4B7A-8189-D14142A2EA57} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOCustomer
+INDEX: {D22E55BA-C519-4839-A74E-643A1EC2B04A} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdAddress
+INDEX: ix_CustomerAddress_Cust | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOCustomer
+
+DESCRIPTION
+--------------------------------------------------------------------------------

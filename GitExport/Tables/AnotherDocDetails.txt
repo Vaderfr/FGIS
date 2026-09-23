@@ -1,0 +1,20 @@
+TABLE: AnotherDocDetails
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdDoc | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+AnotherDocName | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+AnotherDocNumber | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+IdOObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {9511B5FE-9408-4AB6-B765-234663380FD4} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdDoc
+
+DESCRIPTION
+--------------------------------------------------------------------------------

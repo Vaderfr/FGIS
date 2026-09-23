@@ -1,0 +1,22 @@
+TABLE: ProtocolAddress
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdAddress | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {F356EB64-93E2-47EB-BC5D-C5B1CBEA32D2} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+INDEX: {FF9992FF-2210-4054-9408-78B91BE28F76} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdAddress
+INDEX: ix_ProtocolAddress_Addr | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdAddress
+INDEX: ix_ProtocolAddress_Prot | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+
+DESCRIPTION
+--------------------------------------------------------------------------------

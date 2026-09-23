@@ -1,0 +1,17 @@
+TABLE: EquipmentDetails
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdEquipment | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+EquipmentId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdEquipment
+
+DESCRIPTION
+--------------------------------------------------------------------------------

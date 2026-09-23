@@ -1,0 +1,765 @@
+Option Compare Database
+Option Explicit
+
+'===============================================================================
+' modGitExport
+'
+' Экспорт объектов Microsoft Access в структуру, удобную для Git/GitHub.
+'
+' Результат:
+'
+'   <папка базы>\GitExport\
+'       Tables\
+'       Queries\
+'       Forms\
+'       Reports\
+'       Modules\
+'       Macros\
+'       Relations\
+'
+' Запуск:
+'
+'   ExportProject
+'
+' Или с указанием своей папки:
+'
+'   ExportProject "D:\Git\register_dev"
+'
+'===============================================================================
+
+
+'-------------------------------------------------------------------------------
+' Главная процедура
+'-------------------------------------------------------------------------------
+
+Public Sub ExportProject(Optional ByVal ExportRoot As String = "")
+
+    Dim db As DAO.Database
+
+    On Error GoTo Err_Handler
+
+    Set db = CurrentDb
+
+    ' Если путь не задан — создаём GitExport рядом с ACCDB
+    If Len(Trim$(ExportRoot)) = 0 Then
+        ExportRoot = CurrentProject.Path & "\GitExport"
+    End If
+
+    ' Нормализуем завершающий "\"
+    ExportRoot = RemoveTrailingSlash(ExportRoot)
+
+    Debug.Print String$(70, "=")
+    Debug.Print "Экспорт проекта Access"
+    Debug.Print "Начало: " & Now()
+    Debug.Print "Папка:  " & ExportRoot
+    Debug.Print String$(70, "=")
+
+    ' Создаём каталоги
+    PrepareFolders ExportRoot
+
+    ' Экспорт объектов
+    ExportQueries ExportRoot
+    ExportForms ExportRoot
+    ExportReports ExportRoot
+    ExportModules ExportRoot
+    ExportMacros ExportRoot
+    ExportTables ExportRoot
+    ExportRelations ExportRoot
+
+    ' Информация о проекте
+    ExportProjectInfo ExportRoot
+
+    Debug.Print String$(70, "=")
+    Debug.Print "Экспорт завершён: " & Now()
+    Debug.Print String$(70, "=")
+
+    MsgBox _
+        "Экспорт проекта завершён." & vbCrLf & vbCrLf & _
+        "Папка:" & vbCrLf & ExportRoot, _
+        vbInformation, _
+        "GitExport"
+
+Exit_Handler:
+    Set db = Nothing
+    Exit Sub
+
+Err_Handler:
+
+    MsgBox _
+        "Ошибка экспорта." & vbCrLf & vbCrLf & _
+        "Ошибка " & Err.Number & ": " & Err.Description, _
+        vbExclamation, _
+        "GitExport"
+
+    Resume Exit_Handler
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' Создание структуры каталогов
+'-------------------------------------------------------------------------------
+
+Private Sub PrepareFolders(ByVal Root As String)
+
+    CreateFolderIfNotExists Root
+
+    CreateFolderIfNotExists Root & "\Tables"
+    CreateFolderIfNotExists Root & "\Queries"
+    CreateFolderIfNotExists Root & "\Forms"
+    CreateFolderIfNotExists Root & "\Reports"
+    CreateFolderIfNotExists Root & "\Modules"
+    CreateFolderIfNotExists Root & "\Macros"
+    CreateFolderIfNotExists Root & "\Relations"
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' QUERY
+'-------------------------------------------------------------------------------
+
+Private Sub ExportQueries(ByVal Root As String)
+
+    Dim db As DAO.Database
+    Dim qdf As DAO.QueryDef
+    Dim FileName As String
+
+    Set db = CurrentDb
+
+    Debug.Print vbCrLf & "[Queries]"
+
+    For Each qdf In db.QueryDefs
+
+        ' Системные Access-запросы
+        If Not IsSystemObject(qdf.Name) Then
+
+            ' Временные запросы Access начинаются с ~
+            If Left$(qdf.Name, 1) <> "~" Then
+
+                FileName = Root & "\Queries\" & _
+                           SafeFileName(qdf.Name) & ".txt"
+
+                Debug.Print "  " & qdf.Name
+
+                Application.SaveAsText _
+                    acQuery, _
+                    qdf.Name, _
+                    FileName
+
+            End If
+
+        End If
+
+    Next qdf
+
+    Set qdf = Nothing
+    Set db = Nothing
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' FORMS
+'-------------------------------------------------------------------------------
+
+Private Sub ExportForms(ByVal Root As String)
+
+    Dim ao As AccessObject
+    Dim FileName As String
+
+    Debug.Print vbCrLf & "[Forms]"
+
+    For Each ao In CurrentProject.AllForms
+
+        If Not IsSystemObject(ao.Name) Then
+
+            FileName = Root & "\Forms\" & _
+                       SafeFileName(ao.Name) & ".txt"
+
+            Debug.Print "  " & ao.Name
+
+            Application.SaveAsText _
+                acForm, _
+                ao.Name, _
+                FileName
+
+        End If
+
+    Next ao
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' REPORTS
+'-------------------------------------------------------------------------------
+
+Private Sub ExportReports(ByVal Root As String)
+
+    Dim ao As AccessObject
+    Dim FileName As String
+
+    Debug.Print vbCrLf & "[Reports]"
+
+    For Each ao In CurrentProject.AllReports
+
+        If Not IsSystemObject(ao.Name) Then
+
+            FileName = Root & "\Reports\" & _
+                       SafeFileName(ao.Name) & ".txt"
+
+            Debug.Print "  " & ao.Name
+
+            Application.SaveAsText _
+                acReport, _
+                ao.Name, _
+                FileName
+
+        End If
+
+    Next ao
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' MODULES
+'-------------------------------------------------------------------------------
+
+Private Sub ExportModules(ByVal Root As String)
+
+    Dim ao As AccessObject
+    Dim FileName As String
+
+    Debug.Print vbCrLf & "[Modules]"
+
+    For Each ao In CurrentProject.AllModules
+
+        If Not IsSystemObject(ao.Name) Then
+
+            FileName = Root & "\Modules\" & _
+                       SafeFileName(ao.Name) & ".txt"
+
+            Debug.Print "  " & ao.Name
+
+            Application.SaveAsText _
+                acModule, _
+                ao.Name, _
+                FileName
+
+        End If
+
+    Next ao
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' MACROS
+'-------------------------------------------------------------------------------
+
+Private Sub ExportMacros(ByVal Root As String)
+
+    Dim ao As AccessObject
+    Dim FileName As String
+
+    Debug.Print vbCrLf & "[Macros]"
+
+    For Each ao In CurrentProject.AllMacros
+
+        If Not IsSystemObject(ao.Name) Then
+
+            FileName = Root & "\Macros\" & _
+                       SafeFileName(ao.Name) & ".txt"
+
+            Debug.Print "  " & ao.Name
+
+            Application.SaveAsText _
+                acMacro, _
+                ao.Name, _
+                FileName
+
+        End If
+
+    Next ao
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' TABLES
+'
+' Для таблиц не используем SaveAsText как основной источник.
+' Вместо этого формируем читаемое описание структуры:
+'
+'   TABLE
+'   FIELD
+'   INDEX
+'
+' Это особенно удобно для Git: изменение поля будет видно обычным diff.
+'-------------------------------------------------------------------------------
+
+Private Sub ExportTables(ByVal Root As String)
+
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Dim FileNo As Integer
+    Dim FileName As String
+
+    Set db = CurrentDb
+
+    Debug.Print vbCrLf & "[Tables]"
+
+    For Each tdf In db.TableDefs
+
+        If Not IsSystemObject(tdf.Name) Then
+
+            ' Не экспортируем временные таблицы
+            If Left$(tdf.Name, 1) <> "~" Then
+
+                FileName = Root & "\Tables\" & _
+                           SafeFileName(tdf.Name) & ".txt"
+
+                Debug.Print "  " & tdf.Name
+
+                FileNo = FreeFile
+
+                Open FileName For Output As #FileNo
+
+                WriteTableDefinition FileNo, tdf
+
+                Close #FileNo
+
+            End If
+
+        End If
+
+    Next tdf
+
+    Set tdf = Nothing
+    Set db = Nothing
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' Запись структуры одной таблицы
+'-------------------------------------------------------------------------------
+
+Private Sub WriteTableDefinition( _
+    ByVal FileNo As Integer, _
+    ByVal tdf As DAO.TableDef)
+
+    Dim fld As DAO.Field
+    Dim idx As DAO.Index
+    Dim idxFld As DAO.Field
+
+    Dim IsPrimary As Boolean
+    Dim IsUnique As Boolean
+
+    Print #FileNo, "TABLE: " & tdf.Name
+    Print #FileNo, "SOURCE: " & TableSource(tdf.Name)
+    Print #FileNo, String$(80, "-")
+
+    Print #FileNo, ""
+    Print #FileNo, "FIELDS"
+    Print #FileNo, String$(80, "-")
+
+    For Each fld In tdf.Fields
+
+        Print #FileNo, _
+            fld.Name & _
+            " | Type=" & FieldTypeName(fld.type) & _
+            " | Size=" & FieldSize(fld) & _
+            " | Required=" & BoolText(fld.Required) & _
+            " | AllowZeroLength=" & BoolText(fld.AllowZeroLength)
+
+    Next fld
+
+
+    Print #FileNo, ""
+    Print #FileNo, "INDEXES"
+    Print #FileNo, String$(80, "-")
+
+    For Each idx In tdf.Indexes
+
+        IsPrimary = False
+        IsUnique = False
+
+        On Error Resume Next
+        IsPrimary = idx.Primary
+        IsUnique = idx.Unique
+        On Error GoTo 0
+
+        Print #FileNo, _
+            "INDEX: " & idx.Name & _
+            " | Primary=" & BoolText(IsPrimary) & _
+            " | Unique=" & BoolText(IsUnique) & _
+            " | IgnoreNulls=" & BoolText(idx.IgnoreNulls)
+
+        For Each idxFld In idx.Fields
+
+            Print #FileNo, _
+                "    FIELD: " & idxFld.Name
+
+        Next idxFld
+
+    Next idx
+
+    Print #FileNo, ""
+    Print #FileNo, "DESCRIPTION"
+    Print #FileNo, String$(80, "-")
+
+    On Error Resume Next
+    Print #FileNo, Nz(tdf.Description, "")
+    On Error GoTo 0
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' RELATIONS
+'
+' Все связи между таблицами в отдельном файле.
+'-------------------------------------------------------------------------------
+
+Private Sub ExportRelations(ByVal Root As String)
+
+    Dim db As DAO.Database
+    Dim rel As DAO.Relation
+    Dim fld As DAO.Field
+
+    Dim FileNo As Integer
+    Dim FileName As String
+
+    Set db = CurrentDb
+
+    FileName = Root & "\Relations\Relations.txt"
+
+    Debug.Print vbCrLf & "[Relations]"
+
+    FileNo = FreeFile
+
+    Open FileName For Output As #FileNo
+
+    Print #FileNo, "ACCESS RELATIONS"
+    Print #FileNo, String$(80, "=")
+    Print #FileNo, ""
+
+    For Each rel In db.Relations
+
+        If Not IsSystemObject(rel.Name) Then
+
+            Debug.Print "  " & rel.Name
+
+            Print #FileNo, "RELATION: " & rel.Name
+            Print #FileNo, "  FROM: " & rel.Table
+            Print #FileNo, "  TO:   " & rel.ForeignTable
+            Print #FileNo, "  ATTRIBUTES: " & rel.Attributes
+
+            For Each fld In rel.Fields
+
+                Print #FileNo, _
+                    "  FIELD: " & fld.Name & _
+                    " -> " & fld.ForeignName
+
+            Next fld
+
+            Print #FileNo, ""
+
+        End If
+
+    Next rel
+
+    Close #FileNo
+
+    Set rel = Nothing
+    Set db = Nothing
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' Информация о проекте
+'-------------------------------------------------------------------------------
+
+Private Sub ExportProjectInfo(ByVal Root As String)
+
+    Dim FileNo As Integer
+    Dim FileName As String
+
+    FileName = Root & "\ProjectInfo.txt"
+
+    FileNo = FreeFile
+
+    Open FileName For Output As #FileNo
+
+    Print #FileNo, "ACCESS PROJECT"
+    Print #FileNo, String$(80, "=")
+    Print #FileNo, ""
+
+    Print #FileNo, "Database:"
+    Print #FileNo, CurrentProject.FullName
+    Print #FileNo, ""
+
+    Print #FileNo, "Project:"
+    Print #FileNo, CurrentProject.Name
+    Print #FileNo, ""
+
+    Print #FileNo, "Access version:"
+    Print #FileNo, Application.Version
+    Print #FileNo, ""
+
+    Print #FileNo, "Export date:"
+    Print #FileNo, Format$(Now(), "yyyy-mm-dd hh:nn:ss")
+    Print #FileNo, ""
+
+    Close #FileNo
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' Определение источника таблицы
+'
+' Для локальной таблицы:
+'     LOCAL
+'
+' Для связанной:
+'     LINKED
+'
+' Если это SQL Server — показываем тип источника, но не пытаемся сохранять
+' пароль/секреты.
+'-------------------------------------------------------------------------------
+
+Private Function TableSource(ByVal TableName As String) As String
+
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb
+    Set tdf = db.TableDefs(TableName)
+
+    If Len(tdf.Connect) = 0 Then
+
+        TableSource = "LOCAL"
+
+    Else
+
+        If InStr(1, tdf.Connect, "ODBC", vbTextCompare) > 0 Then
+
+            TableSource = "LINKED / ODBC"
+
+        Else
+
+            TableSource = "LINKED"
+
+        End If
+
+    End If
+
+    Set tdf = Nothing
+    Set db = Nothing
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Тип поля
+'-------------------------------------------------------------------------------
+
+Private Function FieldTypeName(ByVal FieldType As DAO.DataTypeEnum) As String
+
+    Select Case FieldType
+
+        Case dbBoolean
+            FieldTypeName = "Boolean"
+
+        Case dbByte
+            FieldTypeName = "Byte"
+
+        Case dbInteger
+            FieldTypeName = "Integer"
+
+        Case dbLong
+            FieldTypeName = "Long Integer"
+
+        Case dbSingle
+            FieldTypeName = "Single"
+
+        Case dbDouble
+            FieldTypeName = "Double"
+
+        Case dbCurrency
+            FieldTypeName = "Currency"
+
+        Case dbDate
+            FieldTypeName = "Date/Time"
+
+        Case dbText
+            FieldTypeName = "Text"
+
+        Case dbLongBinary
+            FieldTypeName = "Long Binary"
+
+        Case dbMemo
+            FieldTypeName = "Long Text"
+
+        Case dbGUID
+            FieldTypeName = "GUID"
+
+        Case dbDecimal
+            FieldTypeName = "Decimal"
+
+        Case dbBigInt
+            FieldTypeName = "BigInt"
+
+        Case dbAttachment
+            FieldTypeName = "Attachment"
+
+        Case dbComplexText
+            FieldTypeName = "Complex Text"
+
+        Case Else
+            FieldTypeName = "Type " & CStr(FieldType)
+
+    End Select
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Размер поля
+'-------------------------------------------------------------------------------
+
+Private Function FieldSize(ByVal fld As DAO.Field) As String
+
+    On Error GoTo NoSize
+
+    Select Case fld.type
+
+        Case dbText, dbBinary
+
+            FieldSize = CStr(fld.Size)
+
+        Case Else
+
+            FieldSize = "-"
+
+    End Select
+
+    Exit Function
+
+NoSize:
+
+    FieldSize = "-"
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Boolean -> Yes/No
+'-------------------------------------------------------------------------------
+
+Private Function BoolText(ByVal Value As Boolean) As String
+
+    If Value Then
+        BoolText = "Yes"
+    Else
+        BoolText = "No"
+    End If
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Проверка системного объекта
+'-------------------------------------------------------------------------------
+
+Private Function IsSystemObject(ByVal ObjectName As String) As Boolean
+
+    Dim s As String
+
+    s = ObjectName
+
+    ' Access системные объекты
+    If Left$(s, 4) = "MSys" Then
+        IsSystemObject = True
+        Exit Function
+    End If
+
+    If Left$(s, 1) = "~" Then
+        IsSystemObject = True
+        Exit Function
+    End If
+
+    ' Скрытые системные объекты
+    If Left$(s, 4) = "USys" Then
+        IsSystemObject = True
+        Exit Function
+    End If
+
+    IsSystemObject = False
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Безопасное имя файла
+'
+' Access-имена объектов могут содержать символы, запрещённые Windows.
+'-------------------------------------------------------------------------------
+
+Private Function SafeFileName(ByVal ObjectName As String) As String
+
+    Dim s As String
+
+    s = ObjectName
+
+    s = Replace(s, "\", "_")
+    s = Replace(s, "/", "_")
+    s = Replace(s, ":", "_")
+    s = Replace(s, "*", "_")
+    s = Replace(s, "?", "_")
+    s = Replace(s, """", "_")
+    s = Replace(s, "<", "_")
+    s = Replace(s, ">", "_")
+    s = Replace(s, "|", "_")
+
+    SafeFileName = s
+
+End Function
+
+
+'-------------------------------------------------------------------------------
+' Создание папки
+'-------------------------------------------------------------------------------
+
+Private Sub CreateFolderIfNotExists(ByVal FolderPath As String)
+
+    If Len(Dir$(FolderPath, vbDirectory)) = 0 Then
+
+        MkDir FolderPath
+
+    End If
+
+End Sub
+
+
+'-------------------------------------------------------------------------------
+' Убираем завершающий "\"
+'-------------------------------------------------------------------------------
+
+Private Function RemoveTrailingSlash(ByVal Path As String) As String
+
+    Do While Right$(Path, 1) = "\"
+
+        Path = Left$(Path, Len(Path) - 1)
+
+    Loop
+
+    RemoveTrailingSlash = Path
+
+End Function

@@ -1,0 +1,47 @@
+Option Compare Database
+Option Explicit
+
+Public Function FileToBase64(ByVal stFile As String) As String
+    Dim bytes
+    Dim B64String
+    With CreateObject("ADODB.Stream")
+    .Open
+    .type = ADODB.adTypeBinary
+    .LoadFromFile stFile
+    bytes = .Read
+    .Close
+    End With
+    B64String = EncodeBase64(bytes)
+    B64String = Replace(B64String, vbCr, "")
+    B64String = Replace(B64String, vbLf, "")
+    FileToBase64 = B64String
+End Function
+
+Private Function EncodeBase64(ByVal bytes As Variant) As String
+    Dim objXML As MSXML2.DOMDocument60
+    Dim objNode As MSXML2.IXMLDOMElement
+
+    Set objXML = New MSXML2.DOMDocument60
+    Set objNode = objXML.createElement("b64")
+
+    objNode.DataType = "bin.base64"
+    objNode.nodeTypedValue = bytes
+    EncodeBase64 = objNode.Text
+
+    Set objNode = Nothing
+    Set objXML = Nothing
+End Function
+
+Private Function DecodeBase64(ByVal strData As String) As Byte()
+    Dim objXML As MSXML2.DOMDocument60
+    Dim objNode As MSXML2.IXMLDOMElement
+    
+    Set objXML = New MSXML2.DOMDocument60
+    Set objNode = objXML.createElement("b64")
+    objNode.DataType = "bin.base64"
+    objNode.Text = strData
+    DecodeBase64 = objNode.nodeTypedValue
+    
+    Set objNode = Nothing
+    Set objXML = Nothing
+End Function

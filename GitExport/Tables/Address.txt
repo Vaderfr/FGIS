@@ -1,0 +1,36 @@
+TABLE: Address
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdAddress | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdCodeOksm | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+IdAddrType | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+IdSubject | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+District | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+City | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Locality | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Street | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+House | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+Flat | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+UniqueAddress | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+UniqueAddressText | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+AddressID | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+alienCity | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+alienDistrict | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+alienLocality | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+alienStreet | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+alienHouse | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: Index_1E001857_A2F1_4AF7 | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdAddress
+INDEX: ux_Address | Primary=No | Unique=Yes | IgnoreNulls=No
+    FIELD: UniqueAddressText
+INDEX: ux_IdAddrType | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdAddrType
+
+DESCRIPTION
+--------------------------------------------------------------------------------

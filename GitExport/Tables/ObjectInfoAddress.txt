@@ -1,0 +1,20 @@
+TABLE: ObjectInfoAddress
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdOObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdAddress | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {66B57D23-95A7-4233-B04D-37B7B631CCB6} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdAddress
+INDEX: {A615B114-BCAC-4BD2-A79A-C28BF1D0F667} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+INDEX: ix_ObjectInfoAddress_Obj | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+
+DESCRIPTION
+--------------------------------------------------------------------------------

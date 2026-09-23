@@ -1,0 +1,17 @@
+TABLE: Conditions
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+ConditionId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+ActualValue | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {90DBD875-8F47-4CF9-878B-CA7A03384A90} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+
+DESCRIPTION
+--------------------------------------------------------------------------------

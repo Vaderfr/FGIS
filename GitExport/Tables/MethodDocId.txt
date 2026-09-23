@@ -1,0 +1,16 @@
+TABLE: MethodDocId
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+MethodDocId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {39F4366D-0DCF-4F56-8AD5-E0297C496057} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+
+DESCRIPTION
+--------------------------------------------------------------------------------

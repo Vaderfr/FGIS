@@ -1,0 +1,32 @@
+Option Compare Database
+Option Explicit
+
+Public Function ErrMsg(strLocation As String, ParamArray State()) As Boolean
+    
+    Dim strMsg As String
+    Dim strState As String
+    Dim intMsg As Integer
+    ' Построение сообщения об ошибке для вывода
+    strMsg = Err.Description & " (" & Err.Number & ")" & vbCrLf & vbCrLf & strLocation
+    
+    strState = Join(State, vbCrLf)
+    
+    If strState <> "" Then
+        strMsg = strMsg & vbCrLf & vbCrLf & strState
+    End If
+    
+    #If C_COMP = 1 Then
+        strMsg = strMsg & vbCrLf & vbCrLf & "Для отладки нажмите ""Да"""
+                Debug.Print strMsg
+        intMsg = MsgBox(strMsg, vbCritical + vbYesNo)
+            If intMsg = vbYes Then
+                ErrMsg = True
+                Debug.Assert False  ' Код остановки дает возможность отладки
+            Else
+                ErrMsg = False     ' Переход к следующей строке, если вы не хотите продолжения
+            End If
+    #Else
+        MsgBox strMsg, vbCritical
+        ErrMsg = False
+    #End If
+End Function

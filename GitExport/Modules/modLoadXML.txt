@@ -1,0 +1,432 @@
+Option Compare Database
+Option Explicit
+
+Public Sub LoadXML()
+
+    Dim fd As Office.FileDialog
+    Dim vFile As Variant
+
+    Set fd = Application.FileDialog(msoFileDialogOpen)
+
+    With fd
+        .Filters.Clear
+        .Filters.Add "XML files", "*.xml"
+        .AllowMultiSelect = True
+
+        If .Show Then
+
+            'ClearAllTables
+
+            For Each vFile In .SelectedItems
+                ParseXML vFile
+            Next vFile
+
+
+        End If
+    End With
+
+End Sub
+
+Public Sub ClearAllTables()
+
+    CurrentDb.Execute "DELETE FROM Protocol"
+    CurrentDb.Execute "DELETE FROM Customer"
+    CurrentDb.Execute "DELETE FROM ObjectInfo"
+    CurrentDb.Execute "DELETE FROM EquipmentDetails"
+
+    CurrentDb.Execute "DELETE FROM Address"
+
+    CurrentDb.Execute "DELETE FROM ProtocolAddress"
+    CurrentDb.Execute "DELETE FROM CustomerAddress"
+    CurrentDb.Execute "DELETE FROM ObjectInfoAddress"
+
+End Sub
+
+Private Function NormalizeText(s As String) As String
+
+    s = Trim(s)
+    s = Replace(s, Chr(160), " ")
+
+    Do While InStr(s, "  ") > 0
+        s = Replace(s, "  ", " ")
+    Loop
+
+    NormalizeText = UCase(s)
+
+End Function
+
+Private Function GetOrCreateAddress( _
+    rs As DAO.Recordset2, _
+    naddrText As MSXML2.IXMLDOMNode) As Long
+
+    Dim rsFind As DAO.Recordset
+    Dim sql As String
+
+    Dim addrText As String
+    Dim typeText As String
+    Dim codeOksm As String
+    Dim subject As String
+    Dim UniqueAddress As String
+
+    '----------------------------
+    ' SAFE XML READ
+    '----------------------------
+    addrText = ""
+    typeText = ""
+    codeOksm = ""
+    subject = ""
+
+    If Not naddrText.SelectSingleNode("UniqueAddressText") Is Nothing Then
+        addrText = NormalizeText(naddrText.SelectSingleNode("UniqueAddressText").Text)
+    End If
+
+    If Not naddrText.SelectSingleNode("UniqueAddress") Is Nothing Then
+        UniqueAddress = naddrText.SelectSingleNode("UniqueAddress").Text
+    End If
+    
+    
+    If Not naddrText.SelectSingleNode("IdAddrType") Is Nothing Then
+        typeText = naddrText.SelectSingleNode("IdAddrType").Text
+    End If
+
+    If Not naddrText.SelectSingleNode("idCodeOksm") Is Nothing Then
+        codeOksm = naddrText.SelectSingleNode("idCodeOksm").Text
+    End If
+
+    If Not naddrText.SelectSingleNode("idSubject") Is Nothing Then
+        subject = naddrText.SelectSingleNode("idSubject").Text
+    End If
+
+    '----------------------------
+    ' SEARCH EXISTING
+    '----------------------------
+    sql = "SELECT IdAddress FROM Address " & _
+          "WHERE UniqueAddressText='" & Replace(addrText, "'", "''") & "' " & _
+          "AND IdAddrType='" & Replace(typeText, "'", "''") & "'"
+
+    Set rsFind = CurrentDb.OpenRecordset(sql)
+
+    If Not rsFind.EOF Then
+        GetOrCreateAddress = rsFind!IdAddress
+        rsFind.Close
+        Exit Function
+    End If
+
+    rsFind.Close
+
+    '----------------------------
+    ' CREATE NEW
+    '----------------------------
+    rs.AddNew
+    rs!idCodeOksm = codeOksm
+    rs!IdAddrType = typeText
+    rs!idSubject = subject
+    rs!UniqueAddress = UniqueAddress
+    rs!UniqueAddressText = addrText
+    rs.Update
+
+    rs.Bookmark = rs.LastModified
+    GetOrCreateAddress = rs!IdAddress
+
+End Function
+
+
+Public Sub ParseXML(ByVal sFile As String)
+
+    Dim xml As New MSXML2.DOMDocument60
+    Dim nProtocol As MSXML2.IXMLDOMNode
+    Dim nNode As MSXML2.IXMLDOMNode
+
+    Dim rsP As DAO.Recordset2
+    Dim rsAI As DAO.Recordset2
+    Dim rsC As DAO.Recordset2
+    Dim rsE As DAO.Recordset2
+    Dim rsO As DAO.Recordset2
+    Dim rsA As DAO.Recordset2
+    Dim rsU As DAO.Recordset2
+    Dim rsPA As DAO.Recordset2
+    Dim rsCA As DAO.Recordset2
+    Dim rsOA As DAO.Recordset2
+    Dim rsR As DAO.Recordset2
+    Dim rsMD As DAO.Recordset2
+    Dim rsPhone As DAO.Recordset2
+    Dim rsEmail As DAO.Recordset2
+    
+    Dim IdProtocol As Long
+    Dim idCustomer As Long
+    Dim idObject As Long
+    Dim idAddr As Long
+
+    xml.Load sFile
+
+    Set rsP = CurrentDb.OpenRecordset("protocol")
+    Set rsAI = CurrentDb.OpenRecordset("AddressID")
+    Set rsC = CurrentDb.OpenRecordset("Customer")
+    Set rsE = CurrentDb.OpenRecordset("EquipmentDetails")
+    Set rsO = CurrentDb.OpenRecordset("ObjectInfo")
+    Set rsA = CurrentDb.OpenRecordset("Address")
+    Set rsU = CurrentDb.OpenRecordset("ApprovedUserDetails")
+    Set rsMD = CurrentDb.OpenRecordset("MethodDocId")
+    Set rsPhone = CurrentDb.OpenRecordset("PhoneDetails")
+    Set rsEmail = CurrentDb.OpenRecordset("Emails")
+    
+    Set rsPA = CurrentDb.OpenRecordset("ProtocolAddress")
+    Set rsCA = CurrentDb.OpenRecordset("CustomerAddress")
+    Set rsOA = CurrentDb.OpenRecordset("ObjectInfoAddress")
+    Set rsR = CurrentDb.OpenRecordset("ResearchObjectInfo")
+
+    For Each nProtocol In xml.DocumentElement.SelectNodes("protocol")
+
+'==================================================
+' 1. PROTOCOL (SAVE FIRST)
+'==================================================
+        rsP.AddNew
+
+        For Each nNode In nProtocol.ChildNodes
+
+            Select Case nNode.BaseName
+
+                Case "Customer", "ObjectInfo", "ApprovedUser", _
+                     "Equipment", "AddressID"
+                    ' skip
+
+                Case Else
+                    On Error Resume Next
+                    rsP(nNode.BaseName) = nNode.Text
+                    On Error GoTo 0
+
+            End Select
+
+        Next nNode
+
+On Error Resume Next
+
+rsP.Update
+
+If Err.Number = 3022 Then
+    
+    Err.Clear
+    On Error GoTo 0
+    
+    GoTo NextProtocol
+
+ElseIf Err.Number <> 0 Then
+    
+    MsgBox "Ошибка сохранения Protocol:" & vbCrLf & _
+           Err.Number & " - " & Err.Description, vbCritical
+    
+    Exit Sub
+
+End If
+
+On Error GoTo 0
+
+rsP.Bookmark = rsP.LastModified
+IdProtocol = rsP!IdProtocol
+'==================================================
+' 2. ADDRESS (simple list)
+'==================================================
+        Dim nAddr As MSXML2.IXMLDOMNode
+
+        For Each nAddr In nProtocol.SelectNodes("Address/AddressDetails")
+            idAddr = GetOrCreateAddress(rsA, nAddr)
+
+            rsPA.AddNew
+            rsPA!IdOProtocol = IdProtocol
+            rsPA!IdAddress = idAddr
+            rsPA.Update
+        Next nAddr
+
+'==================================================
+' 2. ADDRESSID (simple list)
+'==================================================
+        Dim nAddrId As MSXML2.IXMLDOMNode
+
+        For Each nAddrId In nProtocol.SelectNodes("AddressID")
+            rsAI.AddNew
+            rsAI!AddressID = nAddrId.Text
+            rsAI!IdOProtocol = IdProtocol
+            rsAI.Update
+        Next nAddrId
+'==================================================
+' 3. CUSTOMER
+'==================================================
+        Dim nCust As MSXML2.IXMLDOMNode
+        Dim nCustField As MSXML2.IXMLDOMNode
+
+        For Each nCust In nProtocol.SelectNodes("Customer")
+
+            rsC.AddNew
+            rsC!IdOProtocol = IdProtocol
+
+            For Each nCustField In nCust.ChildNodes
+
+                If nCustField.BaseName <> "Address" Then
+                    On Error Resume Next
+                    rsC(nCustField.BaseName) = nCustField.Text
+                    On Error GoTo 0
+                End If
+
+            Next nCustField
+
+            rsC.Update
+            rsC.Bookmark = rsC.LastModified
+            idCustomer = rsC!idCustomer
+
+'----- CUSTOMER ADDRESS
+            Dim nCustAddr As MSXML2.IXMLDOMNode
+
+            For Each nCustAddr In nCust.SelectNodes("Address/AddressDetails")
+
+'                idAddr = GetOrCreateAddress(rsA, nCustAddr.SelectSingleNode("UniqueAddressText").Text)
+                idAddr = GetOrCreateAddress(rsA, nCustAddr)
+
+                rsCA.AddNew
+                rsCA!IdOCustomer = idCustomer
+                rsCA!IdAddress = idAddr
+                rsCA.Update
+
+            Next nCustAddr
+
+
+Dim nPhone As MSXML2.IXMLDOMNode
+
+For Each nPhone In nCust.SelectNodes("Phones/PhoneDetails")
+
+    rsPhone.AddNew
+    rsPhone!IdOCustomer = idCustomer
+
+    If Not nPhone.SelectSingleNode("Number") Is Nothing Then
+        rsPhone!Number = nPhone.SelectSingleNode("Number").Text
+    End If
+
+    If Not nPhone.SelectSingleNode("Annex") Is Nothing Then
+        rsPhone!Annex = nPhone.SelectSingleNode("Annex").Text
+    End If
+
+    If Not nPhone.SelectSingleNode("IsRf") Is Nothing Then
+        rsPhone!IsRf = nPhone.SelectSingleNode("IsRf").Text
+    End If
+
+    rsPhone.Update
+
+Next
+
+Dim nEmail As MSXML2.IXMLDOMNode
+
+For Each nEmail In nCust.SelectNodes("Emails/Email")
+
+    rsEmail.AddNew
+    rsEmail!IdOCustomer = idCustomer
+    rsEmail!Email = nEmail.Text
+    rsEmail.Update
+
+Next
+
+        Next nCust
+
+
+        Dim nEq As MSXML2.IXMLDOMNode
+        'Dim nEqField As MSXML2.IXMLDOMNode
+        
+        For Each nEq In nProtocol.SelectNodes("Equipment/EquipmentDetails")
+            
+            rsE.AddNew
+            rsE!EquipmentId = nEq.SelectSingleNode("EquipmentId").Text
+            rsE!IdOProtocol = IdProtocol
+            rsE.Update
+        
+        Next nEq
+        
+        
+        Dim nUser As MSXML2.IXMLDOMNode
+        'Dim nUserField As MSXML2.IXMLDOMNode
+        
+        For Each nUser In nProtocol.SelectNodes("ApprovedUser/ApprovedUserDetails")
+            rsU.AddNew
+            rsU!idFullName = nUser.SelectSingleNode("idFullName").Text
+            rsU!PostName = nUser.SelectSingleNode("PostName").Text
+            rsU!idRoleName = nUser.SelectSingleNode("idRoleName").Text
+            rsU!IdOProtocol = IdProtocol
+            rsU.Update
+       Next nUser
+
+'==================================================
+' 4. OBJECT INFO
+'==================================================
+        Dim nObj As MSXML2.IXMLDOMNode
+        Dim nObjField As MSXML2.IXMLDOMNode
+
+        For Each nObj In nProtocol.SelectNodes("ObjectInfo")
+
+            rsO.AddNew
+            rsO!IdOProtocol = IdProtocol
+
+            For Each nObjField In nObj.ChildNodes
+
+                Select Case nObjField.BaseName
+
+                    Case "ResearchObject"
+                        ' later
+                    Case Else
+                        On Error Resume Next
+                        rsO(nObjField.BaseName) = nObjField.Text
+                        On Error GoTo 0
+
+                End Select
+
+            Next nObjField
+
+            rsO.Update
+            rsO.Bookmark = rsO.LastModified
+            idObject = rsO!IdObjectInfo
+            
+            '----- OBJECT INFO ADDRESS (LabSelectionAddress)
+
+Dim nObjAddr As MSXML2.IXMLDOMNode
+
+For Each nObjAddr In nObj.SelectNodes("LabSelectionAddress/AddressDetails")
+
+    idAddr = GetOrCreateAddress(rsA, nObjAddr)
+
+    rsOA.AddNew
+    rsOA!IdOObjectInfo = idObject
+    rsOA!IdAddress = idAddr
+    rsOA.Update
+
+Next nObjAddr
+'----- METHOD DOC ID (MULTIPLE)
+Dim nMD As MSXML2.IXMLDOMNode
+
+For Each nMD In nObj.SelectNodes("MethodDocId")
+
+    rsMD.AddNew
+    rsMD!IdOObjectInfo = idObject
+    rsMD!methodDocId = nMD.Text
+    rsMD.Update
+
+Next nMD
+'----- RESEARCH OBJECT
+            Dim nR As MSXML2.IXMLDOMNode
+            Dim nRField As MSXML2.IXMLDOMNode
+
+            For Each nR In nObj.SelectNodes("ResearchObject/ResearchObjectInfo")
+
+                rsR.AddNew
+                rsR!IdOObjectInfo = idObject
+
+                For Each nRField In nR.ChildNodes
+                    On Error Resume Next
+                    rsR(nRField.BaseName) = nRField.Text
+                    On Error GoTo 0
+                Next nRField
+
+                rsR.Update
+
+            Next nR
+
+        Next nObj
+NextProtocol:
+    Next nProtocol
+
+End Sub

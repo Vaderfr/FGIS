@@ -1,0 +1,19 @@
+TABLE: Emails
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdEmail | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+Email | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOCustomer | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {3915DFCF-FC9F-40D8-BF44-024179DF4184} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOCustomer
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdEmail
+
+DESCRIPTION
+--------------------------------------------------------------------------------

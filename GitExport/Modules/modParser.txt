@@ -1,0 +1,452 @@
+Option Compare Database
+Option Explicit
+
+    Dim labPrefix As String
+
+Public Sub ProcessScanFiles()
+
+    Dim rs As DAO.Recordset
+    Dim FileName As String
+    Dim PathScan As String
+    Dim protList As String
+    Dim srcType As Integer
+    Dim DateFile As Date
+
+    Dim parsed As Boolean
+    Dim errText As String
+
+    CurrentDb.Execute ("DELETE FROM tScan")
+    
+    Set rs = CurrentDb.OpenRecordset( _
+        "SELECT PathScan, FileName, SourceType, Parsed, ErrorText, DateFile " & _
+        "FROM tFiles " & _
+        "WHERE Nz(Parsed, False)=False")
+    labPrefix = fGetSetting("IdLabEIAS")
+    
+    Do Until rs.EOF
+
+        On Error GoTo FileError
+
+        FileName = Nz(rs!FileName, "")
+        PathScan = Nz(rs!PathScan, "")
+        srcType = Nz(rs!SourceType, 0)
+        DateFile = rs!DateFile
+        protList = ""
+
+        parsed = False
+        errText = ""
+
+        Select Case srcType
+
+            Case 1
+                protList = ParseV1FileName(FileName)
+
+            Case 2
+                protList = ParseV2FileName(FileName)
+
+            Case Else
+                Err.Raise vbObjectError + 1000, , _
+                          "Unknown SourceType: " & srcType
+
+        End Select
+
+        If Len(Trim$(protList)) > 0 Then
+            InsertScanResult protList, PathScan, srcType, DateFile
+            parsed = True
+        Else
+            errText = "Parse returned empty result"
+        End If
+
+UpdateRecord:
+
+        rs.Edit
+        rs!parsed = parsed
+
+        If Len(errText) = 0 Then
+            rs!ErrorText = Null
+        Else
+            rs!ErrorText = errText
+        End If
+
+        rs.Update
+
+NextFile:
+
+        On Error GoTo 0
+        rs.MoveNext
+        DoEvents
+
+    Loop
+
+    rs.Close
+    Set rs = Nothing
+    Exit Sub
+
+FileError:
+
+    parsed = False
+    errText = Err.Number & ": " & Err.Description
+    Resume UpdateRecord
+
+End Sub
+
+
+Public Sub InsertScanResult(ByVal protList As String, ByVal pathFile As String, ByVal srcType As Integer, ByVal DateFile As Date)
+
+    Dim v As Variant
+    Dim arr As Variant
+    Dim rs As DAO.Recordset
+
+    Set rs = CurrentDb.OpenRecordset("tScan")
+
+    arr = Split(protList, ";")
+
+    For Each v In arr
+        If Len(Trim$(v)) > 0 Then
+
+            rs.AddNew
+            rs!ProtNum = Trim$(v)
+            rs!pathFile = pathFile
+            rs!SourceType = srcType
+            rs!DateFile = DateFile
+            rs.Update
+
+        End If
+    Next v
+
+    rs.Close
+
+End Sub
+
+
+
+Public Function ParseV1FileName(ByVal s As String) As String
+
+    Dim reRange As Object
+    Dim reSingle As Object
+    Dim m As Object
+
+    Dim parts() As String
+    Dim part As Variant
+
+'    Dim labPrefix As String
+    Dim result As String
+    Dim prot As String
+
+    Dim n1 As Long, n2 As Long, i As Long
+    Dim testNo As String
+    Dim yy As String
+    Dim modif As String
+
+'    labPrefix = "59-01"
+
+    '----------------------------------------
+    ' ÍÎÐÌÀËÈÇÀÖÈß
+    '----------------------------------------
+
+    If LCase$(Right$(s, 4)) = ".pdf" Then
+        s = Left$(s, Len(s) - 4)
+    End If
+
+    s = Trim$(s)
+
+    ' äèàïàçîíû
+    s = Replace(s, " - ", "-")
+    s = Replace(s, " -", "-")
+    s = Replace(s, "- ", "-")
+
+    ' ðàçäåëèòåëè
+    s = Replace(s, ";", ",")
+    s = Replace(s, " ", ",")
+    s = Replace(s, vbTab, ",")
+
+    ' óáðàòü äóáëè çàïÿòûõ
+    Do While InStr(s, ",,") > 0
+        s = Replace(s, ",,", ",")
+    Loop
+
+    ' óáðàòü çàïÿòûå ïî êðàÿì
+    Do While Len(s) > 0 And Left$(s, 1) = ","
+        s = Mid$(s, 2)
+    Loop
+
+    Do While Len(s) > 0 And Right$(s, 1) = ","
+        s = Left$(s, Len(s) - 1)
+    Loop
+
+    '----------------------------------------
+    ' REGEX RANGE
+    '----------------------------------------
+
+    Set reRange = CreateObject("VBScript.RegExp")
+
+    With reRange
+        .IgnoreCase = True
+        .Global = False
+        .Pattern = "^(\d+)\.(?:(\d{2})\.)?(\d{2})(?:_(È|1È|2È|1|2))?-(\d+)\.(?:(\d{2})\.)?(\d{2})(?:_(È|1È|2È|1|2))?$"
+        '.Pattern = "^(\d{5})\.(?:(0[1-5])\.)?(\d{2})(?:_(È|1È|2È|3È|4È|5È|1|2|3|4|5))?-(\d{5})\.(?:(0[1-5])\.)?(\d{2})(?:_(È|1È|2È|3È|4È|5È|1|2|3|4|5))?$"
+    End With
+
+    '----------------------------------------
+    ' REGEX SINGLE
+    '----------------------------------------
+
+    Set reSingle = CreateObject("VBScript.RegExp")
+
+    With reSingle
+        .IgnoreCase = True
+        .Global = False
+        .Pattern = "^(\d+)\.(?:(\d{2})\.)?(\d{2})(?:_(È|1È|2È|1|2))?$"
+        '.Pattern = "^(\d{5})\.(?:(0[1-5])\.)?(\d{2})(?:_(È|1È|2È|3È|4È|5È|1|2|3|4|5))?$"
+    End With
+
+    '----------------------------------------
+    ' SPLIT
+    '----------------------------------------
+
+    parts = Split(s, ",")
+
+    For Each part In parts
+
+        part = Trim$(CStr(part))
+        If Len(part) = 0 Then GoTo NextPart
+
+        '========================
+        ' RANGE
+        '========================
+If reRange.Test(part) Then
+
+    Set m = reRange.Execute(part)(0)
+
+    n1 = CLng(m.SubMatches(0))
+    n2 = CLng(m.SubMatches(4))
+
+    testNo = m.SubMatches(1)
+    yy = m.SubMatches(2)
+
+    ' ìîäèôèêàòîð áåð¸ì ÒÎËÜÊÎ èç ëåâîé ÷àñòè
+    modif = m.SubMatches(3)
+
+    For i = n1 To n2
+
+        prot = labPrefix & "/" & Format$(i, "00000")
+
+        If Len(testNo) > 0 Then
+            prot = prot & "-" & testNo
+        End If
+
+        prot = prot & "-" & yy
+
+        If Len(modif) > 0 Then
+            prot = prot & "/" & modif
+        End If
+
+        If Len(result) > 0 Then result = result & ";"
+        result = result & prot
+
+    Next i
+
+
+        '========================
+        ' SINGLE
+        '========================
+        ElseIf reSingle.Test(part) Then
+
+            Set m = reSingle.Execute(part)(0)
+
+            prot = labPrefix & "/" & m.SubMatches(0)
+
+            If Len(m.SubMatches(1)) > 0 Then
+                prot = prot & "-" & m.SubMatches(1)
+            End If
+
+            prot = prot & "-" & m.SubMatches(2)
+
+            If Len(m.SubMatches(3)) > 0 Then
+                prot = prot & "/" & m.SubMatches(3)
+            End If
+
+            If Len(result) > 0 Then result = result & ";"
+            result = result & prot
+
+        End If
+
+NextPart:
+    Next part
+
+    ParseV1FileName = result
+
+End Function
+
+
+Public Function ParseV2FileName(ByVal s As String) As String
+
+    Dim reSingle As Object
+    Dim reRange As Object
+    Dim m As Object
+
+    Dim parts() As String
+    Dim part As Variant
+
+    Dim result As String
+    Dim item As String
+
+    Dim n1 As Long, n2 As Long, i As Long
+    Dim yy As String
+    Dim modif As String
+
+    '----------------------------------------
+    ' ÍÎÐÌÀËÈÇÀÖÈß
+    '----------------------------------------
+
+    If LCase$(Right$(s, 4)) = ".pdf" Then
+        s = Left$(s, Len(s) - 4)
+    End If
+
+    s = Trim$(s)
+
+    ' Åñëè íà÷èíàåòñÿ ñ "ï" — òîëüêî îäèíî÷íûé äîêóìåíò
+    If Left$(LCase$(s), 1) = "ï" Then
+
+        Set reSingle = CreateObject("VBScript.RegExp")
+
+        With reSingle
+            .IgnoreCase = True
+            .Global = False
+            .Pattern = "^ï(\d+)\.(\d{2})(?:_(È|1È|2È|1|2))?$"
+        End With
+
+        If reSingle.Test(s) Then
+            Set m = reSingle.Execute(s)(0)
+
+            result = "ï" & CLng(m.SubMatches(0)) & "." & m.SubMatches(1)
+
+            If Len(m.SubMatches(2)) > 0 Then
+                result = result & "/" & m.SubMatches(2)
+            End If
+        End If
+
+        ParseV2FileName = result
+        Exit Function
+
+    End If
+
+    '----------------------------------------
+    ' ÍÎÐÌÀËÈÇÀÖÈß ÑÏÈÑÊÀ
+    '----------------------------------------
+
+    s = Replace(s, " - ", "-")
+    s = Replace(s, " -", "-")
+    s = Replace(s, "- ", "-")
+
+    s = Replace(s, ";", ",")
+    s = Replace(s, " ", ",")
+    s = Replace(s, vbTab, ",")
+
+    Do While InStr(s, ",,") > 0
+        s = Replace(s, ",,", ",")
+    Loop
+
+    Do While Len(s) > 0 And Left$(s, 1) = ","
+        s = Mid$(s, 2)
+    Loop
+
+    Do While Len(s) > 0 And Right$(s, 1) = ","
+        s = Left$(s, Len(s) - 1)
+    Loop
+
+    '----------------------------------------
+    ' REGEX
+    '----------------------------------------
+
+    Set reSingle = CreateObject("VBScript.RegExp")
+
+    With reSingle
+        .IgnoreCase = True
+        .Global = False
+        .Pattern = "^(\d+)\.(\d{2})(?:_(È|1È|2È|1|2))?$"
+    End With
+
+    Set reRange = CreateObject("VBScript.RegExp")
+
+    With reRange
+        .IgnoreCase = True
+        .Global = False
+        .Pattern = "^(\d+)\.(\d{2})(?:_(È|1È|2È|1|2))?-(\d+)\.(\d{2})(?:_(È|1È|2È|1|2))?$"
+    End With
+
+    '----------------------------------------
+    ' ÎÁÐÀÁÎÒÊÀ
+    '----------------------------------------
+
+    parts = Split(s, ",")
+
+    For Each part In parts
+
+        part = Trim$(CStr(part))
+        If Len(part) = 0 Then GoTo NextPart
+
+        '----- äèàïàçîí -----
+        If reRange.Test(part) Then
+
+            Set m = reRange.Execute(part)(0)
+
+            If m.SubMatches(1) = m.SubMatches(4) Then
+
+                n1 = CLng(m.SubMatches(0))
+                n2 = CLng(m.SubMatches(3))
+
+                yy = m.SubMatches(1)
+                modif = m.SubMatches(2)
+
+                For i = n1 To n2
+
+                    item = CStr(i) & "." & yy
+
+                    If Len(modif) > 0 Then
+                        item = item & "/" & modif
+                    End If
+
+                    If Len(result) > 0 Then result = result & ";"
+                    result = result & item
+
+                Next i
+
+            End If
+
+        '----- îäèíî÷íûé -----
+        ElseIf reSingle.Test(part) Then
+
+            Set m = reSingle.Execute(part)(0)
+
+            item = CLng(m.SubMatches(0)) & "." & m.SubMatches(1)
+
+            If Len(m.SubMatches(2)) > 0 Then
+                item = item & "/" & m.SubMatches(2)
+            End If
+
+            If Len(result) > 0 Then result = result & ";"
+            result = result & item
+
+        End If
+
+NextPart:
+    Next part
+
+    ParseV2FileName = result
+
+End Function
+
+Public Function sufficsV1(st As String) As String
+
+    Dim pos As Integer
+    Dim l As Integer
+    
+    pos = InStr(1, st, ".")
+    l = Len(st)
+    
+    sufficsV1 = Mid(st, pos, l)
+    
+
+
+End Function

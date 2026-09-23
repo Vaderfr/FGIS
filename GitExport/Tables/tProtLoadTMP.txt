@@ -1,0 +1,27 @@
+TABLE: tProtLoadTMP
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+№ | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Статус данных протокола | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Статус протокола | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Номер протокола | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Дата протокола | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Номер аттестата аккредитации АЛ | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Наименование АЛ | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Тип объекта | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Наименование объекта | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Тип заказчика | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Наименование заказчика | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Дата подачи заявления | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Дата создания протокола в Системе | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: Номер аттестата аккредитации АЛ | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: Номер аттестата аккредитации АЛ
+
+DESCRIPTION
+--------------------------------------------------------------------------------

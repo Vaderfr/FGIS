@@ -1,0 +1,25 @@
+TABLE: ObjectInfo
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+TypeObjectId | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+ModelGetDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+FullNameObject | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+SamplesCount | Type=Text | Size=100 | Required=No | AllowZeroLength=Yes
+IsLab | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+LabSelectionDate | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IsAnotherDoc | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {76435D26-3B86-4E60-BA54-73FDEAD95821} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdObjectInfo
+
+DESCRIPTION
+--------------------------------------------------------------------------------

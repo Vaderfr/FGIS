@@ -1,0 +1,21 @@
+TABLE: PhoneDetails
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdPhone | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+Number | Type=Text | Size=15 | Required=No | AllowZeroLength=Yes
+Annex | Type=Text | Size=7 | Required=No | AllowZeroLength=Yes
+IsRf | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOCustomer | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {6705BB4E-EE2C-4378-A4E8-6B9F4AF88D50} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOCustomer
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdPhone
+
+DESCRIPTION
+--------------------------------------------------------------------------------

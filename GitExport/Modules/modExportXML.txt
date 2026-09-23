@@ -1,0 +1,1198 @@
+Option Compare Database
+Option Explicit
+    Private DataStatusId As Integer
+    Private mDB As DAO.Database
+    
+
+Public Sub ExportProtocols()
+On Error GoTo Er
+
+    Dim doc As Object
+    Dim Root As Object
+    Dim rs As DAO.Recordset
+    Dim StatusId As VbMsgBoxResult
+    Dim MaxProtocols As Long
+    Dim FilePath As String
+    Dim FileName As String
+    Dim fso As Scripting.FileSystemObject
+    
+    Dim CountInFile As Long
+    Dim ProtocolNum As Long
+    Dim FirstNum As Long
+    Dim LastNum As Long
+
+    MaxProtocols = fGetSetting("Paсk")
+    If MaxProtocols <= 0 Then MaxProtocols = 20
+    
+    FilePath = fGetSetting("Destination")
+
+    Set mDB = CurrentDb
+    
+    If Not CheckProtocolScans Then GoTo Exit_Sub
+    
+    Set rs = mDB.OpenRecordset("SELECT p.* " _
+        & "FROM (Protocol AS p INNER JOIN ProtocolScan AS s " _
+        & "ON p.IdProtocol = s.IdOProtocol) LEFT JOIN tProtCab ON p.DocId = tProtCab.ProtocolNumber " _
+        & "WHERE (((tProtCab.ProtocolNumber) Is Null));")
+        
+    If rs.EOF Then MsgBox "Нет на выгрузку...", vbOKOnly + vbExclamation: GoTo Exit_Sub
+
+    StatusId = MsgBox("Чистовик?", vbYesNo + vbQuestion)
+
+    If StatusId = vbYes Then
+        DataStatusId = 13
+    Else
+        DataStatusId = 20
+    End If
+
+    Set fso = New Scripting.FileSystemObject
+
+    ProtocolNum = 0
+    CountInFile = 0
+
+    CreateXml doc, Root
+
+
+    Do Until rs.EOF
+
+        ProtocolNum = ProtocolNum + 1
+        CountInFile = CountInFile + 1
+
+        WriteProtocol doc, Root, rs
+
+
+        If CountInFile = MaxProtocols Then
+
+            FirstNum = ProtocolNum - CountInFile + 1
+            LastNum = ProtocolNum
+
+            FileName = fso.BuildPath( _
+                FilePath, _
+                "xml_" & FirstNum & "-" & LastNum & ".xml")
+
+            doc.Save FileName
+            
+            Set Root = Nothing
+            Set doc = Nothing
+
+            CountInFile = 0
+            CreateXml doc, Root
+
+        End If
+
+
+        rs.MoveNext
+
+    Loop
+
+
+    If CountInFile > 0 Then
+
+        FirstNum = ProtocolNum - CountInFile + 1
+        LastNum = ProtocolNum
+
+        FileName = fso.BuildPath( _
+            FilePath, _
+            "xml_" & FirstNum & "-" & LastNum & ".xml")
+
+        doc.Save FileName
+
+    End If
+
+Exit_Sub:
+
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+
+    Set mDB = Nothing
+    Set Root = Nothing
+    Set doc = Nothing
+    Set fso = Nothing
+    
+    Exit Sub
+
+Er:
+    If ErrMsg("modExportXML.ExportProtocols") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+Private Sub CreateXml(ByRef doc As Object, ByRef Root As Object)
+On Error GoTo Er
+
+    Set doc = XmlCreate()
+    Set Root = XmlNode(doc, "root")
+    XmlAppend doc, Root
+
+Exit_Sub:
+
+    Exit Sub
+
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Private Sub WriteProtocol(doc As Object, Root As Object, rs As DAO.Recordset)
+On Error GoTo Er
+
+    Dim p As Object
+    Dim finalStatus As Long
+
+    If IsReplacementProtocol(rs!docId) Then
+        finalStatus = 20
+    Else
+        finalStatus = DataStatusId
+    End If
+    
+    
+    Set p = XmlNode(doc, "protocol")
+    XmlAppend Root, p
+
+    ' === обязательные поля (XSD sequence порядок важен) ===
+    XmlText doc, p, "DocId", rs!docId
+    XmlDate doc, p, "DocCreationDate", rs!DocCreationDate
+    XmlDate doc, p, "DocStartDate", rs!DocStartDate
+    XmlDate doc, p, "DocValidityDate", rs!DocValidityDate
+
+
+    XmlInt doc, p, "DataStatusId", finalStatus
+    XmlInt doc, p, "ProtocolStatusId", rs!ProtocolStatusId
+
+    ' === вложенные структуры дальше ===
+    WriteProtocolScan doc, p, rs!IdProtocol
+    WriteAddressIDs doc, p, rs!IdProtocol
+    WriteTerritoryFeature doc, p, rs!TerritoryFeature
+    WriteProtocolAddress doc, p, rs!IdProtocol
+
+    XmlText doc, p, "AdditionKindId", rs!AdditionKindId
+    XmlDate doc, p, "AdditionKindDate", rs!AdditionKindDate
+    XmlDate doc, p, "ApplicationDate", rs!ApplicationDate
+
+    WriteCustomer doc, p, rs!IdProtocol
+
+    XmlBool doc, p, "AccredScope353", rs!AccredScope353
+    XmlBool doc, p, "NoEquipmentInfo", rs!NoEquipmentInfo
+
+    WriteEquipment doc, p, rs!IdProtocol
+    WriteApprovedUsers doc, p, rs!IdProtocol
+
+    WriteObjectInfo doc, p, rs!IdProtocol
+
+Exit_Sub:
+
+    Set p = Nothing
+    
+    Exit Sub
+
+Er:
+    If ErrMsg("modExportXML.WriteProtocol") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Private Function IsReplacementProtocol(docId As String) As Boolean
+On Error GoTo Er
+
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+
+    re.Pattern = "/[0-9]*И$"
+    re.Global = False
+    re.IgnoreCase = True
+
+    IsReplacementProtocol = re.Test(docId)
+    
+Exit_Sub:
+    Set re = Nothing
+    Exit Function
+
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+
+End Function
+
+
+Public Sub WriteCustomer(doc As Object, parent As Object, IdProtocol As Long)
+On Error GoTo Er
+
+    Dim c As Object
+    Dim rs As DAO.Recordset
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM Customer WHERE IdOProtocol=" & IdProtocol)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set c = XmlNode(doc, "Customer")
+    XmlAppend parent, c
+
+    ' === обязательные поля ===
+    XmlInt doc, c, "CustomerKindId", rs!CustomerKindId
+    XmlText doc, c, "DocId", rs!docId
+
+    XmlText doc, c, "InnId", rs!InnId
+    XmlText doc, c, "OgrnId", rs!OgrnId
+    XmlText doc, c, "FullNameDetails", rs!FullNameDetails
+    XmlText doc, c, "FioFl", rs!FioFl
+
+    ' === вложенные блоки ===
+    WriteCustomerPhones doc, c, rs!idCustomer
+    WriteCustomerEmails doc, c, rs!idCustomer
+    WriteCustomerAddress doc, c, rs!idCustomer
+
+Exit_Sub:
+    
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Set c = Nothing
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.WriteCustomer") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteCustomerPhones(doc As Object, parent As Object, customerId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim phones As Object
+    Dim p As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM PhoneDetails WHERE IdOCustomer=" & customerId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set phones = XmlNode(doc, "Phones")
+    XmlAppend parent, phones
+
+    Do Until rs.EOF
+
+        Set p = XmlNode(doc, "PhoneDetails")
+        XmlAppend phones, p
+
+        XmlText doc, p, "Number", rs!Number
+        XmlText doc, p, "Annex", rs!Annex
+        XmlBool doc, p, "IsRf", rs!IsRf
+
+        rs.MoveNext
+    Loop
+
+Exit_Sub:
+
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Set p = Nothing
+    Set phones = Nothing
+    Exit Sub
+    
+Er:
+    If ErrMsg("modExportXML.WriteCustomerPhones") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteCustomerEmails(doc As Object, parent As Object, customerId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim e As Object
+    Dim emails As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT Email FROM Emails WHERE IdOCustomer=" & customerId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set emails = XmlNode(doc, "Emails")
+    XmlAppend parent, emails
+
+    Do Until rs.EOF
+
+        Set e = XmlNode(doc, "Email")
+        e.Text = rs!Email
+        XmlAppend emails, e
+
+        rs.MoveNext
+    Loop
+
+Exit_Sub:
+
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Set e = Nothing
+    Set emails = Nothing
+    Exit Sub
+
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+
+End Sub
+
+
+Public Sub WriteCustomerAddress(doc As Object, parent As Object, customerId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim a As Object
+    Dim ad As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT Address.*, CustomerAddress.IdOCustomer FROM Address INNER JOIN CustomerAddress ON Address.IdAddress = CustomerAddress.IdAddress WHERE IdOCustomer=" & customerId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set a = XmlNode(doc, "Address")
+    XmlAppend parent, a
+
+    Set ad = XmlNode(doc, "AddressDetails")
+    XmlAppend a, ad
+
+    XmlText doc, ad, "idCodeOksm", rs!idCodeOksm
+    XmlInt doc, ad, "IdAddrType", rs!IdAddrType
+    XmlText doc, ad, "idSubject", rs!idSubject
+    XmlText doc, ad, "District", rs!District
+    XmlText doc, ad, "City", rs!City
+    XmlText doc, ad, "Locality", rs!Locality
+    XmlText doc, ad, "Street", rs!Street
+    XmlText doc, ad, "House", rs!House
+    XmlText doc, ad, "Flat", rs!Flat
+    XmlBool doc, ad, "UniqueAddress", rs!UniqueAddress
+    XmlText doc, ad, "UniqueAddressText", rs!UniqueAddressText
+    XmlText doc, ad, "alienCity", rs!alienCity
+    XmlText doc, ad, "alienDistrict", rs!alienDistrict
+    XmlText doc, ad, "alienLocality", rs!alienLocality
+    XmlText doc, ad, "alienStreet", rs!alienStreet
+    XmlText doc, ad, "alienHouse", rs!alienHouse
+
+Exit_Sub:
+
+
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Set a = Nothing
+    Set ad = Nothing
+    Exit Sub
+    
+Er:
+    If ErrMsg("modExportXML.WriteCustomerAddress") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteObjectInfo(doc As Object, parent As Object, IdProtocol As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim oi As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM ObjectInfo WHERE IdOProtocol=" & IdProtocol)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set oi = XmlNode(doc, "ObjectInfo")
+    XmlAppend parent, oi
+    
+    ' 1
+    XmlInt doc, oi, "TypeObjectId", rs!TypeObjectId
+    
+    ' 2
+    WriteMethodDocIds doc, oi, rs!IdObjectInfo
+    
+    ' 3
+    XmlDate doc, oi, "ModelGetDate", rs!ModelGetDate
+    
+    ' 4
+    XmlText doc, oi, "FullNameObject", rs!FullNameObject
+    
+    ' 5
+    XmlText doc, oi, "SamplesCount", rs!SamplesCount
+    
+    ' 6
+    WriteResearchObject doc, oi, rs!IdObjectInfo
+    
+    ' 7
+    XmlBool doc, oi, "IsLab", rs!IsLab
+    
+    ' 8
+    XmlDate doc, oi, "LabSelectionDate", rs!LabSelectionDate
+    
+    ' 9
+    WriteLabSelectionAddress doc, oi, rs!IdObjectInfo
+    
+    ' 10
+    XmlBool doc, oi, "IsAnotherDoc", NeedIsAnotherDoc(rs!IdObjectInfo)
+    
+    ' 11
+    WriteAnotherDocs doc, oi, rs!IdObjectInfo
+    
+    ' 12
+    WriteConditions doc, oi, rs!IdObjectInfo
+
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Set oi = Nothing
+
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.WriteObjectInfo") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteMethodDocIds(doc As Object, parent As Object, objectInfoId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim n As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT MethodDocId FROM MethodDocId WHERE IdOObjectInfo=" & objectInfoId)
+
+    Do Until rs.EOF
+
+        Set n = XmlNode(doc, "MethodDocId")
+        n.Text = rs!methodDocId
+        XmlAppend parent, n
+
+        rs.MoveNext
+    Loop
+    
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set n = Nothing
+    Exit Sub
+
+
+Er:
+    If ErrMsg("modExportXML.WriteMethodDocIds") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteResearchObject(doc As Object, parent As Object, objectInfoId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim r As Object
+    Dim ro As Object
+
+    'Set rs = CurrentDb.OpenRecordset( _
+        "SELECT * FROM ResearchObjectInfo WHERE IdOObjectInfo=" & objectInfoId)
+        
+    
+    Set rs = mDB.OpenRecordset( _
+        "SELECT ResearchObjectInfo.IndicatorId, ResearchObjectInfo.UniqueIndicator, Nz([ResearchObjectInfo]![Directory],""DM-53535"") AS Directory, ResearchObjectInfo.FactValue, ResearchObjectInfo.MeasurementId, ResearchObjectInfo.UniqueMeasurement, ResearchObjectInfo.DocNameId, ResearchObjectInfo.UniqueMethod, ResearchObjectInfo.DocNameMethodikId, IIf(IsNull([ResearchObjectInfo].[DocNameMethodikId]) And IsNull([ResearchObjectInfo].[UniqueMethodik]),"" - "",[ResearchObjectInfo].[UniqueMethodik]) AS UniqueMethodik, ResearchObjectInfo.IdOObjectInfo " _
+    & "FROM ResearchObjectInfo " _
+    & " WHERE IdOObjectInfo = " & objectInfoId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set ro = XmlNode(doc, "ResearchObject")
+    XmlAppend parent, ro
+
+    Do Until rs.EOF
+
+        Set r = XmlNode(doc, "ResearchObjectInfo")
+        XmlAppend ro, r
+
+        XmlText doc, r, "IndicatorId", rs!IndicatorId
+        XmlText doc, r, "UniqueIndicator", rs!UniqueIndicator
+        XmlText doc, r, "Directory", rs!Directory
+        XmlText doc, r, "FactValue", rs!FactValue
+        XmlText doc, r, "MeasurementId", rs!MeasurementId
+        XmlText doc, r, "UniqueMeasurement", rs!UniqueMeasurement
+        XmlText doc, r, "DocNameId", rs!DocNameId
+        XmlText doc, r, "UniqueMethod", rs!UniqueMethod
+        XmlText doc, r, "DocNameMethodikId", rs!DocNameMethodikId
+        XmlText doc, r, "UniqueMethodik", rs!UniqueMethodik
+
+        rs.MoveNext
+    Loop
+
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set r = Nothing
+    Set ro = Nothing
+    Exit Sub
+
+Er:
+    If ErrMsg("modExportXML.WriteResearchObject") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteConditions(doc As Object, parent As Object, objectInfoId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim cond As Object
+    Dim det As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM Conditions WHERE IdOObjectInfo=" & objectInfoId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Do Until rs.EOF
+
+        Set cond = XmlNode(doc, "Conditions")
+        XmlAppend parent, cond
+
+        Set det = XmlNode(doc, "ConditionsDetails")
+        XmlAppend cond, det
+
+        XmlText doc, det, "ConditionId", rs!ConditionId
+        XmlFloat doc, det, "ActualValue", rs!ActualValue
+        XmlText doc, det, "MeasurementId", rs!MeasurementId
+
+        rs.MoveNext
+    Loop
+
+
+Exit_Sub:
+
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set cond = Nothing
+    Set det = Nothing
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+Public Sub WriteLabSelectionAddress(doc As Object, parent As Object, objectInfoId As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim a As Object
+    Dim addr As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT Address.*, ObjectInfoAddress.IdOObjectInfo FROM Address INNER JOIN ObjectInfoAddress ON Address.IdAddress = ObjectInfoAddress.IdAddress WHERE IdOObjectInfo = " & objectInfoId)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Set a = XmlNode(doc, "LabSelectionAddress")
+    XmlAppend parent, a
+
+    Set addr = XmlNode(doc, "AddressDetails")
+    XmlAppend a, addr
+
+    XmlText doc, addr, "idCodeOksm", rs!idCodeOksm
+    XmlInt doc, addr, "IdAddrType", rs!IdAddrType
+    XmlText doc, addr, "idSubject", rs!idSubject
+    XmlText doc, addr, "District", rs!District
+    XmlText doc, addr, "City", rs!City
+    XmlText doc, addr, "Locality", rs!Locality
+    XmlText doc, addr, "Street", rs!Street
+    XmlText doc, addr, "House", rs!House
+    XmlText doc, addr, "Flat", rs!Flat
+    XmlBool doc, addr, "UniqueAddress", rs!UniqueAddress
+    XmlText doc, addr, "UniqueAddressText", rs!UniqueAddressText
+
+
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set a = Nothing
+    Set addr = Nothing
+    
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteAddressIDs(doc As Object, parent As Object, IdProtocol As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim n As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT AddressID FROM AddressID WHERE IdOProtocol=" & IdProtocol)
+
+    If rs.EOF Then
+        rs.Close
+        Exit Sub
+    End If
+
+    Do Until rs.EOF
+
+        If XmlHasValue(rs!AddressID) Then
+
+            Set n = doc.createElement("AddressID")
+            n.Text = CLng(rs!AddressID)
+
+            parent.appendChild n
+
+        End If
+
+        rs.MoveNext
+    Loop
+
+
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set n = Nothing
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+Public Sub WriteProtocolScan(doc As Object, parent As Object, IdProtocol As Long)
+On Error GoTo Er
+
+    Dim rs As DAO.Recordset
+    Dim scan As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT ProtocolScan.Extension, ProtocolScan.FileName, ProtocolScan.Content FROM ProtocolScan WHERE ProtocolScan.IdOProtocol = " & IdProtocol)
+
+
+    Set scan = doc.createElement("ProtocolScan")
+    parent.appendChild scan
+
+    XmlText doc, scan, "Extension", rs!Extension
+    XmlText doc, scan, "FileName", rs!FileName
+
+    Dim ct As Object
+    Set ct = doc.createElement("Content")
+    ct.Text = FileToBase64(rs!Content)
+    scan.appendChild ct
+
+Exit_Sub:
+    If Not rs Is Nothing Then
+        rs.Close
+        Set rs = Nothing
+    End If
+    Set scan = Nothing
+    Exit Sub
+Er:
+    If ErrMsg("modExportXML.CreateXml") Then
+        Resume
+    Else
+        Resume Exit_Sub
+    End If
+End Sub
+
+
+Public Sub WriteEquipment(doc As Object, parent As Object, IdProtocol As Long)
+
+    Dim rs As DAO.Recordset
+    Dim eq As Object
+    Dim group As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT EquipmentId FROM EquipmentDetails WHERE IdOProtocol=" & IdProtocol)
+
+If rs.EOF Then
+    rs.Close
+    Exit Sub
+End If
+    Set group = doc.createElement("Equipment")
+    parent.appendChild group
+
+    Do Until rs.EOF
+
+        Set eq = doc.createElement("EquipmentDetails")
+        group.appendChild eq
+
+        XmlText doc, eq, "EquipmentId", rs!EquipmentId
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+
+End Sub
+
+
+Public Sub WriteApprovedUsers(doc As Object, parent As Object, IdProtocol As Long)
+
+    Dim rs As DAO.Recordset
+    Dim group As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM ApprovedUserDetails WHERE IdOProtocol=" & IdProtocol)
+
+If rs.EOF Then
+    rs.Close
+    Exit Sub
+End If
+
+    Set group = doc.createElement("ApprovedUser")
+    parent.appendChild group
+
+    Do Until rs.EOF
+
+        WriteApprovedUserDetails doc, group, rs!IdApprovedUserDetails
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+
+End Sub
+
+
+
+
+
+Public Sub WriteApprovedUserDetails(doc As Object, parent As Object, approvedUserId As Long)
+
+    Dim rs As DAO.Recordset
+    Dim n As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM ApprovedUserDetails WHERE IdApprovedUserDetails=" & approvedUserId)
+
+If rs.EOF Then
+    rs.Close
+    Exit Sub
+End If
+
+    Set n = doc.createElement("ApprovedUserDetails")
+    parent.appendChild n
+
+    XmlInt doc, n, "idFullName", rs!idFullName
+    XmlText doc, n, "PostName", rs!PostName
+    XmlInt doc, n, "idRoleName", rs!idRoleName
+
+    'WriteRoles doc, n, approvedUserId
+
+    rs.Close
+
+End Sub
+
+
+Public Sub WriteRoles(doc As Object, parent As Object, approvedUserId As Long)
+
+    Dim rs As DAO.Recordset
+    Dim r As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT idRoleName FROM ApprovedUserRole WHERE ApprovedUserID=" & approvedUserId)
+
+    Do Until rs.EOF
+
+        Set r = doc.createElement("idRoleName")
+        r.Text = rs!idRoleName
+        parent.appendChild r
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+
+End Sub
+
+
+Public Sub WriteTerritoryFeature(doc As Object, parent As Object, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+
+    Dim n As Object
+    Set n = doc.createElement("TerritoryFeature")
+
+    If Value = True Or Value = 1 Then
+        n.Text = "true"
+    Else
+        n.Text = "false"
+    End If
+
+    parent.appendChild n
+
+End Sub
+
+
+
+Public Sub WriteProtocolAddress(doc As Object, parent As Object, IdProtocol As Long)
+
+    Dim rs As DAO.Recordset
+    Dim addr As Object
+    Dim details As Object
+
+    'Set rs = mDB.OpenRecordset( _
+        "SELECT * FROM ProtocolAddressDetails WHERE IdProtocol=" & IdProtocol)
+    Set rs = mDB.OpenRecordset("SELECT * FROM Address INNER JOIN ProtocolAddress ON Address.IdAddress = ProtocolAddress.IdAddress WHERE IdOProtocol = " & IdProtocol)
+
+If rs.EOF Then
+    rs.Close
+    Exit Sub
+End If
+    Set addr = doc.createElement("Address")
+    parent.appendChild addr
+
+    Do Until rs.EOF
+
+        Set details = doc.createElement("AddressDetails")
+        addr.appendChild details
+
+        XmlText doc, details, "idCodeOksm", rs!idCodeOksm
+        XmlInt doc, details, "IdAddrType", rs!IdAddrType
+        XmlText doc, details, "idSubject", rs!idSubject
+        XmlText doc, details, "District", rs!District
+        XmlText doc, details, "City", rs!City
+        XmlText doc, details, "Locality", rs!Locality
+        XmlText doc, details, "Street", rs!Street
+        XmlText doc, details, "House", rs!House
+        XmlText doc, details, "Flat", rs!Flat
+        XmlBool doc, details, "UniqueAddress", rs!UniqueAddress
+        XmlText doc, details, "UniqueAddressText", rs!UniqueAddressText
+        XmlText doc, details, "alienCity", rs!alienCity
+        XmlText doc, details, "alienDistrict", rs!alienDistrict
+        XmlText doc, details, "alienLocality", rs!alienLocality
+        XmlText doc, details, "alienStreet", rs!alienStreet
+        XmlText doc, details, "alienHouse", rs!alienHouse
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+
+End Sub
+
+
+Public Sub WriteAnotherDocs(doc As Object, parent As Object, _
+                            objectInfoId As Long)
+
+    Dim rs As DAO.Recordset
+    Dim grp As Object
+    Dim det As Object
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT AnotherDocName, AnotherDocNumber " & _
+        "FROM AnotherDocDetails WHERE IdOObjectInfo=" & objectInfoId)
+
+    ' Нет записей
+    If rs.EOF Then
+
+        rs.Close
+
+        ' Заглушка нужна только если отсутствует MethodDocId
+If Not HasMethodDocs(objectInfoId) Then
+            Set grp = doc.createElement("AnotherDoc")
+            parent.appendChild grp
+
+            Set det = doc.createElement("AnotherDocDetails")
+            grp.appendChild det
+
+            XmlText doc, det, "AnotherDocName", "-"
+            XmlText doc, det, "AnotherDocNumber", "-"
+
+        End If
+
+        Exit Sub
+
+    End If
+
+    ' Есть реальные записи
+    Set grp = doc.createElement("AnotherDoc")
+    parent.appendChild grp
+
+    Do Until rs.EOF
+
+        Set det = doc.createElement("AnotherDocDetails")
+        grp.appendChild det
+
+        XmlText doc, det, "AnotherDocName", rs!AnotherDocName
+        XmlText doc, det, "AnotherDocNumber", rs!AnotherDocNumber
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+
+End Sub
+
+
+Public Function XmlCreate() As Object
+    Dim doc As Object
+    Set doc = CreateObject("MSXML2.DOMDocument.6.0")
+
+    doc.appendChild doc.createProcessingInstruction( _
+        "xml", "version='1.0' encoding='utf-8'")
+
+    Set XmlCreate = doc
+End Function
+
+Public Function XmlNode(doc As Object, nodeName As String) As Object
+    Set XmlNode = doc.createElement(nodeName)
+End Function
+
+Public Sub XmlAppend(parent As Object, child As Object)
+    parent.appendChild child
+End Sub
+
+Public Function XmlHasValue(v As Variant) As Boolean
+
+    If IsNull(v) Then
+        XmlHasValue = False
+        Exit Function
+    End If
+
+    If VarType(v) = vbString Then
+        XmlHasValue = (Len(Trim$(v)) > 0)
+    Else
+        XmlHasValue = True
+    End If
+
+End Function
+
+
+
+Public Sub XmlText(doc As Object, parent As Object, tag As String, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+
+    Dim n As Object
+    Set n = doc.createElement(tag)
+    n.Text = CStr(Value)
+
+    parent.appendChild n
+
+End Sub
+Public Sub XmlInt(doc As Object, parent As Object, tag As String, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+    
+    Dim n As Object
+    Set n = doc.createElement(tag)
+    n.Text = CStr(CLng(Value))
+
+    parent.appendChild n
+
+End Sub
+
+
+Public Sub XmlBool(doc As Object, parent As Object, tag As String, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+    
+    Dim n As Object
+    Set n = doc.createElement(tag)
+
+    If Value Then
+        n.Text = "true"
+    Else
+        n.Text = "false"
+    End If
+
+    parent.appendChild n
+
+End Sub
+
+
+Public Sub XmlDate(doc As Object, parent As Object, tag As String, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+
+    Dim n As Object
+    Set n = doc.createElement(tag)
+
+    n.Text = Format(Value, "yyyy-mm-dd")
+
+    parent.appendChild n
+
+End Sub
+
+Private Function HasAnotherDocs(objectInfoId As Long) As Boolean
+
+    HasAnotherDocs = _
+        (DCount("*", "AnotherDocDetails", _
+                "IdOObjectInfo=" & objectInfoId) > 0)
+
+End Function
+
+
+Private Function NeedAnotherDocStub(objectInfoId As Long, methodDocId As Variant) As Boolean
+
+    If Not IsNull(methodDocId) Then
+        NeedAnotherDocStub = False
+    Else
+        NeedAnotherDocStub = Not HasAnotherDocs(objectInfoId)
+    End If
+
+End Function
+Public Sub XmlFloat(doc As Object, parent As Object, tag As String, Value As Variant)
+
+    If Not XmlHasValue(Value) Then Exit Sub
+
+    Dim n As Object
+    Set n = doc.createElement(tag)
+
+    n.Text = Replace(Trim$(Str$(CSng(Value))), ",", ".")
+
+    parent.appendChild n
+
+End Sub
+
+Private Function HasMethodDocs(objectInfoId As Long) As Boolean
+
+    HasMethodDocs = _
+        (DCount("*", "MethodDocId", _
+                "IdOObjectInfo=" & objectInfoId) > 0)
+
+End Function
+Private Function NeedIsAnotherDoc(objectInfoId As Long) As Boolean
+
+    If HasAnotherDocs(objectInfoId) Then
+        NeedIsAnotherDoc = True
+
+    ElseIf HasMethodDocs(objectInfoId) Then
+        NeedIsAnotherDoc = False
+
+    Else
+        NeedIsAnotherDoc = True
+    End If
+
+End Function
+
+
+Private Function CheckProtocolScans() As Boolean
+
+    Dim rs As DAO.Recordset
+    Dim Msg As String
+
+    Set rs = mDB.OpenRecordset( _
+        "SELECT p.DocId, s.FileName " & _
+        "FROM Protocol AS p INNER JOIN ProtocolScan AS s " & _
+        "ON p.IdProtocol = s.IdOProtocol " & _
+        "WHERE s.IdOProtocol IN (" & _
+        "SELECT IdOProtocol FROM ProtocolScan " & _
+        "GROUP BY IdOProtocol HAVING Count(*) > 1) " & _
+        "ORDER BY p.DocId, s.FileName")
+
+    If Not rs.EOF Then
+
+        Msg = "Обнаружены протоколы с несколькими сканами:" & vbCrLf & vbCrLf
+
+        Do Until rs.EOF
+
+            Msg = Msg & _
+                rs!docId & " : " & rs!FileName & vbCrLf
+
+            rs.MoveNext
+
+        Loop
+
+        MsgBox Msg, vbExclamation, "Ошибка сканов"
+
+        CheckProtocolScans = False
+
+    Else
+
+        CheckProtocolScans = True
+
+    End If
+
+    rs.Close
+    Set rs = Nothing
+
+End Function

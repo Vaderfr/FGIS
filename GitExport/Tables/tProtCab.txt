@@ -1,0 +1,32 @@
+TABLE: tProtCab
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+ID | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+Edit | Type=Boolean | Size=- | Required=No | AllowZeroLength=No
+Delay | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+ALName | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+SentDate | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+CreateDate | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+ObjectType | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+RegNumberAL | Type=Text | Size=30 | Required=No | AllowZeroLength=Yes
+CustomerName | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+CustomerType | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+DecisionDate | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+ProtocolDate | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+StatementDate | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+AccredScope353 | Type=Boolean | Size=- | Required=No | AllowZeroLength=No
+FullObjectName | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+ProtocolNumber | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+ProtocolStatus | Type=Text | Size=30 | Required=No | AllowZeroLength=Yes
+ResearchResult | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+ChangeStatusNumber | Type=Text | Size=50 | Required=No | AllowZeroLength=Yes
+ProtocolDataStatus | Type=Text | Size=30 | Required=No | AllowZeroLength=Yes
+
+INDEXES
+--------------------------------------------------------------------------------
+
+DESCRIPTION
+--------------------------------------------------------------------------------

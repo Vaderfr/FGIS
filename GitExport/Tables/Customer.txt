@@ -1,0 +1,24 @@
+TABLE: Customer
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdCustomer | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+DocId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+CustomerKindId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+InnId | Type=Text | Size=12 | Required=No | AllowZeroLength=Yes
+OgrnId | Type=Text | Size=15 | Required=No | AllowZeroLength=Yes
+FullNameDetails | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+FioFl | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {0D87A3DA-C1A8-46DD-A71D-9585C02877A5} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdCustomer
+
+DESCRIPTION
+--------------------------------------------------------------------------------

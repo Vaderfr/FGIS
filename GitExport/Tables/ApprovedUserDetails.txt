@@ -1,0 +1,21 @@
+TABLE: ApprovedUserDetails
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdApprovedUserDetails | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+idFullName | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+PostName | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+idRoleName | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IdOProtocol | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {F86F1883-7D98-4AA8-B2B3-6D7A8CC47D0A} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOProtocol
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdApprovedUserDetails
+
+DESCRIPTION
+--------------------------------------------------------------------------------

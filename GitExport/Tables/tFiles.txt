@@ -1,0 +1,20 @@
+TABLE: tFiles
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+PathScan | Type=Long Text | Size=- | Required=Yes | AllowZeroLength=Yes
+FileName | Type=Long Text | Size=- | Required=Yes | AllowZeroLength=Yes
+SourceType | Type=Byte | Size=- | Required=No | AllowZeroLength=No
+Parsed | Type=Boolean | Size=- | Required=No | AllowZeroLength=No
+ErrorText | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DateFile | Type=Date/Time | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: PathScan | Primary=No | Unique=Yes | IgnoreNulls=No
+    FIELD: PathScan
+
+DESCRIPTION
+--------------------------------------------------------------------------------

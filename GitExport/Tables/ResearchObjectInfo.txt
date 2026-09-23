@@ -1,0 +1,28 @@
+TABLE: ResearchObjectInfo
+SOURCE: LOCAL
+--------------------------------------------------------------------------------
+
+FIELDS
+--------------------------------------------------------------------------------
+IdResearch | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+IndicatorId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+UniqueIndicator | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+Directory | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+FactValue | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+MeasurementId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+UniqueMeasurement | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+DocNameId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+UniqueMethod | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+DocNameMethodikId | Type=Text | Size=255 | Required=No | AllowZeroLength=Yes
+UniqueMethodik | Type=Long Text | Size=- | Required=No | AllowZeroLength=Yes
+IdOObjectInfo | Type=Long Integer | Size=- | Required=No | AllowZeroLength=No
+
+INDEXES
+--------------------------------------------------------------------------------
+INDEX: {CA843951-DD6E-4CCF-8885-EEF159BD60BD} | Primary=No | Unique=No | IgnoreNulls=No
+    FIELD: IdOObjectInfo
+INDEX: PrimaryKey | Primary=Yes | Unique=Yes | IgnoreNulls=No
+    FIELD: IdResearch
+
+DESCRIPTION
+--------------------------------------------------------------------------------
