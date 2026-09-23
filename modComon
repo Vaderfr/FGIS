@@ -1,0 +1,76 @@
+Option Compare Database
+Option Explicit
+Public g_sInputBoxResult As String
+
+Public Function fGetSetting(st As String) As Variant
+    fGetSetting = GetSetting("5LIS", "Main", st, "")
+End Function
+
+Public Function fInputBox( _
+    Optional ByVal sCaption As String = "Введите значение", _
+    Optional ByVal sDefault As String = "" _
+) As String
+
+    g_sInputBoxResult = sDefault
+
+    DoCmd.OpenForm _
+        FormName:="InputBox", _
+        WindowMode:=acDialog
+
+    fInputBox = g_sInputBoxResult
+
+End Function
+
+Public Function fProtYear(ByVal sName As String) As String
+
+    Dim re As Object
+    Dim m As Object
+    Dim lastYear As String
+
+    Set re = CreateObject("VBScript.RegExp")
+
+    With re
+        .Global = True
+        .Pattern = "\.(\d{2})(?=\.|_|$)"
+    End With
+
+    For Each m In re.Execute(sName)
+        lastYear = m.SubMatches(0)
+    Next
+
+    If lastYear <> "" Then
+        fProtYear = "20" & lastYear
+    End If
+
+End Function
+Public Sub sCreateFolder(ByVal sPath As String, Optional ByVal IsFile As Boolean = True)
+On Error GoTo Er
+    Dim fso As New Scripting.FileSystemObject
+    Dim vPath As Variant
+    Dim sDrive As String
+    Dim n As Integer
+    Dim st As String
+
+''Debug.Assert False
+    
+    sDrive = fso.GetDriveName(sPath) & "\"
+    If IsFile Then sPath = fso.GetParentFolderName(sPath)
+    sPath = Replace(sPath, sDrive, "")
+    vPath = Split(sPath, "\")
+    sPath = sDrive
+    For n = 0 To UBound(vPath)
+        sPath = fso.BuildPath(sPath, vPath(n))
+        If Not fso.FolderExists(sPath) Then fso.CreateFolder (sPath)
+    Next n
+
+Exit_Sub:
+    Exit Sub
+Er:
+    If ErrMsg("bCommon.sCreateFolder") Then Resume
+End Sub
+Public Function ISOToDate(ByVal s As String) As Date
+    s = Left$(s, 19)            'убираем миллисекунды и Z
+    s = Replace(s, "T", " ")
+    s = Replace(s, "-", "/")
+    ISOToDate = CDate(s)
+End Function
